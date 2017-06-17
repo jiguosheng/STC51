@@ -1,0 +1,32 @@
+C51 COMPILER V9.00   INIT                                                                  08/03/2015 19:24:10 PAGE 1   
+
+
+C51 COMPILER V9.00, COMPILATION OF MODULE INIT
+OBJECT MODULE PLACED IN ..\Output\Init.obj
+COMPILER INVOKED BY: D:\keil c51\C51\BIN\C51.EXE ..\src\Init.c LARGE BROWSE INCDIR(..\inc;D:\keil c51\C51\INC) DEBUG OBJ
+                    -ECTEXTEND PRINT(..\list\Init.lst) OBJECT(..\Output\Init.obj)
+
+line level    source
+
+   1          #include <Var.h>
+   2          
+   3          void MCU_Init()
+   4          {
+   5   1              UartInit();
+   6   1              WDT_CONTR = 0x38;       //看门狗定时时间=12*预分频*32768/晶振频率
+   7   1                                                      //定时71.1mS
+   8   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =      7    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

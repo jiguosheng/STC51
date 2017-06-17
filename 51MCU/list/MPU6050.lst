@@ -1,0 +1,236 @@
+C51 COMPILER V9.00   MPU6050                                                               07/30/2015 17:37:23 PAGE 1   
+
+
+C51 COMPILER V9.00, COMPILATION OF MODULE MPU6050
+OBJECT MODULE PLACED IN ..\Output\MPU6050.obj
+COMPILER INVOKED BY: D:\keil c51\C51\BIN\C51.EXE ..\src\MPU6050.c LARGE BROWSE INCDIR(..\inc;D:\keil c51\C51\INC) DEBUG 
+                    -OBJECTEXTEND PRINT(..\list\MPU6050.lst) OBJECT(..\Output\MPU6050.obj)
+
+line level    source
+
+   1          #include <Var.h>
+   2          
+   3          #define WHO_AM_I                        0x75    //IIC地址寄存器(默认数值0x68，只读)
+   4          #define MPU6050_SlaveAddress    0xD0    //IIC写入时的地址字节数据，+1为读取
+   5          
+   6          unsigned char Ax_Offset = 0;
+   7          unsigned char Ay_Offset = 0;
+   8          unsigned char Az_Offset = 14;
+   9          unsigned char Wx_Offset = 0;
+  10          unsigned char Wy_Offset = 0;
+  11          unsigned char Wz_Offset = 0;
+  12          float xdata exInt=0,eyInt=0,ezInt=0;
+  13          float xdata q0=1,q1=0,q2=0,q3=0;
+  14          
+  15          void InitMPU6050()                                              //初始化MPU6050
+  16          {
+  17   1              Single_WriteI2C(MPU6050_SlaveAddress,PWR_MGMT_1, 0x00); //解除休眠状态
+  18   1              Single_WriteI2C(MPU6050_SlaveAddress,SMPLRT_DIV, 0x07);
+  19   1              Single_WriteI2C(MPU6050_SlaveAddress,CONFIG, 0x06);
+  20   1              Single_WriteI2C(MPU6050_SlaveAddress,GYRO_CONFIG, 0x18);
+  21   1              Single_WriteI2C(MPU6050_SlaveAddress,ACCEL_CONFIG, 0x18);
+  22   1      
+  23   1              Single_WriteI2C(MPU6050_SlaveAddress,0x6A, 0x44);
+  24   1              Single_WriteI2C(MPU6050_SlaveAddress,0x23, 0xff);
+  25   1      }
+  26          
+  27          float GetData(unsigned char REG_Address)                        //合成数据
+  28          {
+  29   1              char H,L;
+  30   1              float dat;
+  31   1      
+  32   1              H=Single_ReadI2C(MPU6050_SlaveAddress,REG_Address);
+  33   1              L=Single_ReadI2C(MPU6050_SlaveAddress,REG_Address+1);
+  34   1              dat = H;
+  35   1              dat = dat*256+L;
+  36   1      
+  37   1              return dat;//(H<<8)+L;   //合成数据
+  38   1      }
+  39          
+  40          float GetData_A(unsigned char REG_Address)                      //合成数据
+  41          {
+  42   1              char H,L;
+  43   1              float dat;
+  44   1      
+  45   1              H=Single_ReadI2C(MPU6050_SlaveAddress,REG_Address);
+  46   1              L=Single_ReadI2C(MPU6050_SlaveAddress,REG_Address+1);
+  47   1              dat = H;
+  48   1              dat = dat*256+L;
+  49   1              dat = dat/2048.0;
+  50   1      
+  51   1              return dat;//(H<<8)+L;   //合成数据
+  52   1      }
+  53          
+  54          float GetData_W(unsigned char REG_Address)                      //合成数据
+C51 COMPILER V9.00   MPU6050                                                               07/30/2015 17:37:23 PAGE 2   
+
+  55          {
+  56   1              char H,L;
+  57   1              float dat;
+  58   1      
+  59   1              H=Single_ReadI2C(MPU6050_SlaveAddress,REG_Address);
+  60   1              L=Single_ReadI2C(MPU6050_SlaveAddress,REG_Address+1);
+  61   1              dat = H;
+  62   1              dat = dat*256+L;
+  63   1              dat = dat/16.4;
+  64   1      
+  65   1              return dat;//(H<<8)+L;   //合成数据
+  66   1      }
+  67          
+  68          float MPU6050_Temp()
+  69          { 
+  70   1              float Temperature;
+  71   1      //      char Temp_h,Temp_l;
+  72   1      
+  73   1      //      Temp_h=Single_ReadI2C(MPU6050_SlaveAddress,TEMP_OUT_H); //读取温度
+  74   1      //      Temp_l=Single_ReadI2C(MPU6050_SlaveAddress,TEMP_OUT_L); //读取温度
+  75   1      //      Temperature = Temp_h;
+  76   1      //      Temperature = Temperature*256+Temp_l;     //合成温度
+  77   1      //      Temperature = 35+ ((double) (Temperature + 13200)) / 280; // 计算出温度
+  78   1              Temperature=(GetData(TEMP_OUT_H)/340.0)+36.53;
+  79   1      
+  80   1              return  Temperature; 
+  81   1      }
+  82          
+  83          void DisplayData(int value,unsigned char x,unsigned char y)   //在1602上显示10位数据
+  84          {                                       
+  85   1              if(value<0)
+  86   1              {
+  87   2                      value=abs(value*1.0);
+  88   2                      Lcd_display(x,y,String2[9]);
+  89   2                      Lcd_display(x,y+1,number[(int)value/1000]);                             // 十位
+  90   2                      Lcd_display(x,y+2,number[(int)value/100%10]);                   // 个位
+  91   2                      Lcd_display(x,y+3,String2[10]);
+  92   2                      Lcd_display(x,y+4,number[(int)value/10%10]);                    // 小数点后一位
+  93   2                      Lcd_display(x,y+5,number[(int)value%10]);                               // 小数点后两位
+  94   2              }
+  95   1              else
+  96   1              {
+  97   2                      Lcd_display(x,y,number[(int)value/1000]);
+  98   2                      Lcd_display(x,y+1,number[(int)value/100%10]);
+  99   2                      Lcd_display(x,y+2,String2[10]);
+ 100   2                      Lcd_display(x,y+3,number[(int)value/10%10]);
+ 101   2                      Lcd_display(x,y+4,number[(int)value%10]);
+ 102   2                      Lcd_display(x,y+5,' '); 
+ 103   2              }                               
+ 104   1      }
+ 105          
+ 106          //void MPU6050(unsigned char select,unsigned char x,unsigned char y)
+ 107          //{     
+ 108          //      switch(select)
+ 109          //      {
+ 110          //              case Ax:        DisplayData(GetData_A(ACCEL_XOUT_H)+Ax_Offset,x,y);     //显示X轴加速度
+ 111          //                                      break;
+ 112          //              case Ay:        DisplayData(GetData_A(ACCEL_YOUT_H)+Ay_Offset,x,y);     //显示Y轴加速度
+ 113          //                                      break;
+ 114          //              case Az:        DisplayData(GetData_A(ACCEL_ZOUT_H)+Az_Offset,x,y);     //显示Z轴加速度
+ 115          //                                      break;
+ 116          //              case Wx:        DisplayData(GetData_W(GYRO_XOUT_H)+Wx_Offset,x,y);      //显示X轴角速度
+C51 COMPILER V9.00   MPU6050                                                               07/30/2015 17:37:23 PAGE 3   
+
+ 117          //                                      break;
+ 118          //              case Wy:        DisplayData(GetData_W(GYRO_YOUT_H)+Wy_Offset,x,y);      //显示Y轴角速度
+ 119          //                                      break;
+ 120          //              case Wz:        DisplayData(GetData_W(GYRO_ZOUT_H)+Wz_Offset,x,y);      //显示Z轴角速度
+ 121          //                                      break;
+ 122          //              case Temp:      DisplayData(MPU6050_Temp(),x,y);
+ 123          //                                      break;
+ 124          //      }       
+ 125          //}
+ 126          
+ 127          void MPU6050()
+ 128          {       
+ 129   1              unsigned char xdata Ax_dat,Ay_dat,Az_dat,Wx_dat,Wy_dat,Wz_dat,temp_dat;
+ 130   1              float xdata norm;
+ 131   1              float xdata vx, vy, vz;
+ 132   1              float xdata ex, ey, ez;
+ 133   1       
+ 134   1              double xdata Angle = 0.0;
+ 135   1              double xdata Angley = 0.0;
+ 136   1              float xdata gx,gy,gz,ax,ay,az;
+ 137   1      
+ 138   1      //      for(i = 1;i<=10;i++)
+ 139   1      //      {
+ 140   1                      Ax_dat = GetData_A(ACCEL_XOUT_H)+Ax_Offset;
+ 141   1                      Ay_dat = GetData_A(ACCEL_YOUT_H)+Ay_Offset;
+ 142   1                      Az_dat = GetData_A(ACCEL_ZOUT_H)+Az_Offset;
+ 143   1                      Wx_dat = GetData_W(GYRO_XOUT_H)+Wx_Offset;
+ 144   1                      Wy_dat = GetData_W(GYRO_YOUT_H)+Wy_Offset;
+ 145   1                      Wz_dat = GetData_W(GYRO_ZOUT_H)+Wz_Offset;
+ 146   1                      temp_dat = MPU6050_Temp();
+ 147   1      
+ 148   1                      gx = Wx_dat*0.0174533;
+ 149   1                      gy = Wy_dat*0.0174533;
+ 150   1                      gz = Wz_dat*0.0174533;
+ 151   1                      ax = Ax_dat;
+ 152   1                      ay = Ay_dat;
+ 153   1                      az = Az_dat;
+ 154   1      
+ 155   1                      norm = sqrt(ax*ax + ay*ay + az*az);      
+ 156   1                      ax = ax/norm;
+ 157   1                      ay = ay/norm;
+ 158   1                      az = az/norm;
+ 159   1                 
+ 160   1                      vx = 2*(q1*q3 - q0*q2);                                                                                         
+ 161   1                      vy = 2*(q0*q1 + q2*q3);
+ 162   1                      vz = q0*q0 - q1*q1 - q2*q2 + q3*q3 ;
+ 163   1      
+ 164   1                      ex = (ay*vz - az*vy) ;                                                                  
+ 165   1                      ey = (az*vx - ax*vz) ;
+ 166   1                      ez = (ax*vy - ay*vx) ;
+ 167   1      
+ 168   1                      exInt = exInt + ex * Ki;                                                                 
+ 169   1                      eyInt = eyInt + ey * Ki;
+ 170   1                      ezInt = ezInt + ez * Ki;
+ 171   1      
+ 172   1                      gx = gx + Kp*ex + exInt;                                                                                                
+ 173   1                      gy = gy + Kp*ey + eyInt;
+ 174   1                      gz = gz + Kp*ez + ezInt;                                                                                        
+ 175   1                                                 
+ 176   1                      q0 = q0 + (-q1*gx - q2*gy - q3*gz)*halfT;
+ 177   1                      q1 = q1 + (q0*gx + q2*gz - q3*gy)*halfT;
+ 178   1                      q2 = q2 + (q0*gy - q1*gz + q3*gx)*halfT;
+C51 COMPILER V9.00   MPU6050                                                               07/30/2015 17:37:23 PAGE 4   
+
+ 179   1                      q3 = q3 + (q0*gz + q1*gy - q2*gx)*halfT;
+ 180   1      
+ 181   1                      norm = sqrt(q0*q0 + q1*q1 + q2*q2 + q3*q3);
+ 182   1                      q0 = q0 / norm;
+ 183   1                      q1 = q1 / norm;
+ 184   1                      q2 = q2 / norm;
+ 185   1                      q3 = q3 / norm;
+ 186   1      
+ 187   1                      Angle=asin(2*(q0*q2-q1*q3 ))* 57.3; // 俯仰
+ 188   1                      Angley=atan2(2 * q2 * q3 + 2 * q0 * q1, -2 * q1 * q1 - 2 * q2* q2 + 1)* 57.3; // 横滚
+ 189   1      //      }
+ 190   1      
+ 191   1        ////////////////////////////////////////////////////////
+ 192   1                      Lcd_display(1,0,number[((long)(Angle*100))/10000]);
+ 193   1                      Lcd_display(1,1,number[((long)(Angle*100))/1000%10]);
+ 194   1                      Lcd_display(1,2,number[((long)(Angle*100))/100%10]);
+ 195   1                      Lcd_display(1,3,String2[10]);
+ 196   1                      Lcd_display(1,4,number[((long)(Angle*100))/10%10]);
+ 197   1                      Lcd_display(1,5,number[((long)(Angle*100))%10]);
+ 198   1      
+ 199   1                      Lcd_display(2,0,number[((long)(Angley*100))/10000]);
+ 200   1                      Lcd_display(2,1,number[((long)(Angley*100))/1000%10]);
+ 201   1                      Lcd_display(2,2,number[((long)(Angley*100))/100%10]);
+ 202   1                      Lcd_display(2,3,String2[10]);
+ 203   1                      Lcd_display(2,4,number[((long)(Angley*100))/10%10]);
+ 204   1                      Lcd_display(2,5,number[((long)(Angley*100))%10]);       
+ 205   1       ////////////////////////////////////////////////////////
+ 206   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   4743    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =     34      92
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

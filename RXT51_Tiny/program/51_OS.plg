@@ -1,0 +1,76 @@
+<html>
+<body>
+<pre>
+<h1>µVision Build Log</h1>
+<h2>Project:</h2>
+C:\Documents and Settings\CPU\×ÀÃæ\51\RXT51_Tiny\program\51_OS.uvproj
+Project File Date:  09/09/2015
+
+<h2>Output:</h2>
+Build target 'Target 1'
+assembling STARTUP.A51...
+assembling Conf_tny.A51...
+compiling task.c...
+..\src\task.c(2): warning C318: can't open file 'STC89C5xRC.h'
+..\src\task.c(3): warning C318: can't open file 'variable.h'
+..\SRC\TASK.C(10): error C202: 'A1': undefined identifier
+..\SRC\TASK.C(11): error C202: 'A2': undefined identifier
+..\SRC\TASK.C(12): error C202: 'A3': undefined identifier
+..\SRC\TASK.C(21): error C202: 'A1': undefined identifier
+..\SRC\TASK.C(37): error C202: 'A1': undefined identifier
+..\SRC\TASK.C(44): error C202: 'A3': undefined identifier
+Target not created
+Build target 'Target 1'
+assembling STARTUP.A51...
+assembling Conf_tny.A51...
+compiling task.c...
+..\INC\VARIABLE.H(4): error C141: syntax error near '^', expected '='
+..\INC\VARIABLE.H(4): error C202: 'A1': undefined identifier
+..\INC\VARIABLE.H(5): error C141: syntax error near '^', expected '='
+..\INC\VARIABLE.H(6): error C141: syntax error near '^', expected '='
+..\SRC\TASK.C(10): error C202: 'A1': undefined identifier
+..\SRC\TASK.C(11): error C202: 'A2': undefined identifier
+..\SRC\TASK.C(12): error C202: 'A3': undefined identifier
+..\SRC\TASK.C(17): error C231: 'T1': redefinition
+..\SRC\TASK.C(21): error C202: 'A1': undefined identifier
+..\SRC\TASK.C(23): error C231: 'T1': redefinition
+..\SRC\TASK.C(26): error C231: 'T2': redefinition
+..\SRC\TASK.C(37): error C202: 'A1': undefined identifier
+..\SRC\TASK.C(39): error C231: 'T2': redefinition
+..\SRC\TASK.C(44): error C202: 'A3': undefined identifier
+Target not created
+Build target 'Target 1'
+assembling STARTUP.A51...
+assembling Conf_tny.A51...
+compiling task.c...
+..\INC\VARIABLE.H(10): error C141: syntax error near '^', expected '='
+..\INC\VARIABLE.H(10): error C202: 'A1': undefined identifier
+..\INC\VARIABLE.H(11): error C141: syntax error near '^', expected '='
+..\INC\VARIABLE.H(12): error C141: syntax error near '^', expected '='
+..\SRC\TASK.C(8): error C202: 'A1': undefined identifier
+..\SRC\TASK.C(9): error C202: 'A2': undefined identifier
+..\SRC\TASK.C(10): error C202: 'A3': undefined identifier
+..\SRC\TASK.C(15): error C231: 'T1': redefinition
+..\SRC\TASK.C(19): error C202: 'A1': undefined identifier
+..\SRC\TASK.C(21): error C231: 'T1': redefinition
+..\SRC\TASK.C(24): error C231: 'T2': redefinition
+..\SRC\TASK.C(35): error C202: 'A1': undefined identifier
+..\SRC\TASK.C(37): error C231: 'T2': redefinition
+..\SRC\TASK.C(42): error C202: 'A3': undefined identifier
+Target not created
+Build target 'Target 1'
+assembling STARTUP.A51...
+assembling Conf_tny.A51...
+compiling task.c...
+linking...
+Program Size: data=28.1 xdata=0 code=1019
+creating hex file from "..\output\51_OS"...
+"..\output\51_OS" - 0 Error(s), 0 Warning(s).
+Build target 'Target 1'
+assembling STARTUP.A51...
+assembling Conf_tny.A51...
+compiling task.c...
+linking...
+Program Size: data=28.1 xdata=0 code=1020
+creating hex file from "..\output\51_OS"...
+"..\output\51_OS" - 0 Error(s), 0 Warning(s).

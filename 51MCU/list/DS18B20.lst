@@ -1,0 +1,137 @@
+C51 COMPILER V9.00   DS18B20                                                               07/30/2015 21:35:56 PAGE 1   
+
+
+C51 COMPILER V9.00, COMPILATION OF MODULE DS18B20
+OBJECT MODULE PLACED IN ..\Output\DS18B20.obj
+COMPILER INVOKED BY: D:\keil c51\C51\BIN\C51.EXE ..\src\DS18B20.c LARGE BROWSE INCDIR(..\inc;D:\keil c51\C51\INC) DEBUG 
+                    -OBJECTEXTEND PRINT(..\list\DS18B20.lst) OBJECT(..\Output\DS18B20.obj)
+
+line level    source
+
+   1          #include <Var.h>
+   2          
+   3          void init_DS18B20()
+   4          {
+   5   1              DQ=1;
+   6   1              delay_us(5,T0);
+   7   1              DQ=0;
+   8   1              delay_ms(1,T0);//delay(500);
+   9   1              DQ=1;
+  10   1              delay_us(60,T0);
+  11   1              while(DQ==0);
+  12   1              delay_ms(1,T0);//delay(500);
+  13   1      }
+  14          
+  15          void write_DS18B20(unsigned char cmd)
+  16          {
+  17   1              unsigned char i;
+  18   1              for(i=1;i<=8;i++)
+  19   1              {
+  20   2                      DQ=0;
+  21   2                      delay_us(15,T0);
+  22   2                      DQ=(bit)(cmd & 0x01);
+  23   2                      cmd=_cror_(cmd,1);
+  24   2                      delay_us(60,T0);
+  25   2                      DQ=1;
+  26   2              }
+  27   1      }
+  28          
+  29          unsigned char read_DS18B20()
+  30          {
+  31   1              unsigned char i=0,cmd=0,jishu[9]={0},quan=1;
+  32   1      
+  33   1              for(i=1;i<=8;i++)
+  34   1              {
+  35   2                      DQ=0;
+  36   2                      delay_us(15,T0);
+  37   2                      DQ=1;
+  38   2                      if(DQ==1)  
+  39   2                      {
+  40   3                              jishu[i]=1;
+  41   3                      }
+  42   2                      cmd=_cror_(cmd,1);
+  43   2                      delay_us(60,T0);
+  44   2              }
+  45   1              for(i=1;i<=8;i++)
+  46   1              {
+  47   2                      cmd=cmd+jishu[i]*quan;
+  48   2                      quan=quan*2;
+  49   2              } 
+  50   1      
+  51   1              return cmd;
+  52   1      } 
+  53          
+  54          void DS18B20work()
+C51 COMPILER V9.00   DS18B20                                                               07/30/2015 21:35:56 PAGE 2   
+
+  55          {
+  56   1              init_DS18B20();
+  57   1              write_DS18B20(0xcc);
+  58   1              write_DS18B20(0x44);
+  59   1              delay_ms(10,T0);
+  60   1              init_DS18B20();
+  61   1              write_DS18B20(0xcc);
+  62   1              write_DS18B20(0xbe);
+  63   1      }
+  64          
+  65          float dispaly_DS18B20()
+  66          {
+  67   1              unsigned char i,cmdl,templ,temph,cmdh ;
+  68   1              float tem = 0.0;
+  69   1      
+  70   1              DS18B20work();
+  71   1              cmdl=read_DS18B20();
+  72   1              cmdh=read_DS18B20();
+  73   1              for(i=0;i<=8;i++)
+  74   1              {
+  75   2                      Lcd_display(1,i,String2[i]);
+  76   2                      delay_us(70,T0);     //ÐÞ¸Ä´Ë´¦µÄÑÓÊ±Ê±¼ä£¬Ê¹µÃlcd1602ÍêÕûÏÔÊ¾ÎÂ¶ÈÖµ¡£×¢£ºÓÐ¹ØDS18B20µÄ³ÌÐòÎÞ´íÎó£¬Ö÷Ò
+             -ªÊÇlcd602²»ÄÜÕýÈ·ÏÔÊ¾¶øÒÑ¡£
+  77   2              }
+  78   1              delay_us(80,T0);     //ÐÞ¸Ä´Ë´¦µÄÑÓÊ±Ê±¼ä£¬Ê¹µÃlcd1602ÍêÕûÏÔÊ¾ÎÂ¶ÈÖµ¡£×¢£ºÓÐ¹ØDS18B20µÄ³ÌÐòÎÞ´íÎó£¬Ö÷Òª
+             -ÊÇlcd602²»ÄÜÕýÈ·ÏÔÊ¾¶øÒÑ¡£
+  79   1              if(cmdh&0x80)
+  80   1              {
+  81   2                      cmdh=~cmdh;
+  82   2                      cmdl=~cmdl;
+  83   2                      cmdl=cmdl+1;
+  84   2                      Lcd_display(1,i,String2[9]);
+  85   2                      _nop_();
+  86   2                      _nop_();
+  87   2              }
+  88   1              temph=cmdh*16+cmdl/16;  
+  89   1              templ=(cmdl%16)*10/16;
+  90   1              tem = temph+templ*0.1;
+  91   1              Lcd_display(1,9,number[temph/100]);
+  92   1              delay_us(30,T0);     //ÐÞ¸Ä´Ë´¦µÄÑÓÊ±Ê±¼ä£¬Ê¹µÃlcd1602ÍêÕûÏÔÊ¾ÎÂ¶ÈÖµ¡£×¢£ºÓÐ¹ØDS18B20µÄ³ÌÐòÎÞ´íÎó£¬Ö÷Òª
+             -ÊÇlcd602²»ÄÜÕýÈ·ÏÔÊ¾¶øÒÑ¡£
+  93   1              Lcd_display(1,10,number[(temph%100)/10]);
+  94   1              delay_us(30,T0);     
+  95   1              Lcd_display(1,11,number[temph%10]);
+  96   1              delay_us(30,T0);     
+  97   1              Lcd_display(1,12,String2[10]);
+  98   1              delay_us(30,T0);    
+  99   1              Lcd_display(1,13,number[templ]);
+ 100   1              delay_us(30,T0);
+ 101   1              Lcd_display(1,14,0xdf);   
+ 102   1              delay_us(30,T0);    
+ 103   1              Lcd_display(1,15,String2[11]);
+ 104   1      
+ 105   1              return tem;
+ 106   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    680    ----
+   CONSTANT SIZE    =      9    ----
+   XDATA SIZE       =   ----      23
+   PDATA SIZE       =   ----    ----
+C51 COMPILER V9.00   DS18B20                                                               07/30/2015 21:35:56 PAGE 3   
+
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

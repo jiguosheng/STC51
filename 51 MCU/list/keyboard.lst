@@ -1,0 +1,79 @@
+C51 COMPILER V9.00   KEYBOARD                                                              07/19/2015 22:48:55 PAGE 1   
+
+
+C51 COMPILER V9.00, COMPILATION OF MODULE KEYBOARD
+OBJECT MODULE PLACED IN ..\Output\keyboard.obj
+COMPILER INVOKED BY: D:\keil c51\C51\BIN\C51.EXE ..\src\keyboard.c BROWSE INCDIR(..\inc;D:\keil c51\C51\INC) DEBUG OBJEC
+                    -TEXTEND PRINT(..\list\keyboard.lst) OBJECT(..\Output\keyboard.obj)
+
+line level    source
+
+   1          #include <Var.h>
+   2          
+   3          unsigned char key_message()
+   4          {
+   5   1              unsigned char keymessagehang,keymessagelie;
+   6   1              unsigned char keymessage=0xff;
+   7   1      
+   8   1              keyboard=0xf0;
+   9   1              if(keyboard!=0xf0) 
+  10   1              { 
+  11   2                      delay_ms(10,T0);
+  12   2              if(keyboard!=0xf0)
+  13   2                      {
+  14   3                              keymessagehang=keyboard;
+  15   3                      }
+  16   2                      keyboard=0x0f;
+  17   2                      delay_ms(10,T0);
+  18   2                      keymessagelie=keyboard;
+  19   2                      keymessage=keymessagehang+keymessagelie;  
+  20   2                      switch(keymessage)
+  21   2                      {
+  22   3                              case 0xe7: keymessage=0;break ;
+  23   3                              case 0xeb: keymessage=1;break ;
+  24   3                              case 0xed: keymessage=2;break ;
+  25   3                              case 0xee: keymessage=3;break ;
+  26   3                              case 0xd7: keymessage=4;break ;
+  27   3                              case 0xdb: keymessage=5;break ;
+  28   3                              case 0xdd: keymessage=6;break ;
+  29   3                              case 0xde: keymessage=7;break ;
+  30   3                              case 0xb7: keymessage=8;break ;
+  31   3                              case 0xbb: keymessage=9;break ;
+  32   3                              case 0xbd: keymessage=10;break ;
+  33   3                              case 0xbe: keymessage=11;break ;
+  34   3                              case 0x77: keymessage=12;break ;
+  35   3                              case 0x7b: keymessage=13;break ;
+  36   3                              case 0x7d: keymessage=14;break ;
+  37   3                              case 0x7e: keymessage=15;break ;
+  38   3                      } 
+  39   2              }
+  40   1      
+  41   1              return keymessage;
+  42   1      }
+  43          
+  44                          
+  45                      /* unsigned char dat=0xff;          
+  46                          dat = key_message(); 
+  47                          if(dat != 0xff)
+  48                          {
+  49                                  while(key_message() != 0xff);
+  50                                  displayshumaguan(dat,dat);
+  51                                  delay_ms(50,T0);
+  52                          }*/
+  53          
+
+C51 COMPILER V9.00   KEYBOARD                                                              07/19/2015 22:48:55 PAGE 2   
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    184    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----       2
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

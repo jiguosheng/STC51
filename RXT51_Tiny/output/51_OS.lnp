@@ -1,0 +1,5 @@
+"..\output\STARTUP.obj",
+"..\output\Conf_tny.obj",
+"..\output\task.obj" 
+TO "..\output\51_OS" Rtx51Tiny 
+PRINT("..\list\51_OS.m51") RAMSIZE(256) 

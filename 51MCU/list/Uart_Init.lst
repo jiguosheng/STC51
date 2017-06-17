@@ -1,0 +1,37 @@
+C51 COMPILER V9.00   UART_INIT                                                             04/23/2016 15:12:00 PAGE 1   
+
+
+C51 COMPILER V9.00, COMPILATION OF MODULE UART_INIT
+OBJECT MODULE PLACED IN ..\Output\Uart_Init.obj
+COMPILER INVOKED BY: D:\keil c51\C51\BIN\C51.EXE ..\src\Uart_Init.c LARGE BROWSE INCDIR(..\inc;D:\keil c51\C51\INC) DEBU
+                    -G OBJECTEXTEND PRINT(..\list\Uart_Init.lst) OBJECT(..\Output\Uart_Init.obj)
+
+line level    source
+
+   1          #include <Var.h>
+   2          
+   3          void UartInit()         //1200bps@11.0592MHz
+   4          {
+   5   1              PCON &= 0x7F;           //波特率不倍速
+   6   1              SCON = 0x50;            //8位数据,可变波特率
+   7   1              AUXR &= 0xFB;           //独立波特率发生器时钟为Fosc/12,即12T
+   8   1              BRT = 0xe8;             //设定独立波特率发生器重装值
+   9   1              AUXR |= 0x01;           //串口1选择独立波特率发生器为波特率发生器
+  10   1              AUXR |= 0x10;           //启动独立波特率发生器
+  11   1              ES = 1;
+  12   1              EA = 1;
+  13   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     23    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

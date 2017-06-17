@@ -1,0 +1,149 @@
+C51 COMPILER V9.00   DS1302                                                                07/24/2015 20:58:58 PAGE 1   
+
+
+C51 COMPILER V9.00, COMPILATION OF MODULE DS1302
+OBJECT MODULE PLACED IN ..\Output\DS1302.obj
+COMPILER INVOKED BY: D:\keil c51\C51\BIN\C51.EXE ..\src\DS1302.c BROWSE INCDIR(..\inc;D:\keil c51\C51\INC) DEBUG OBJECTE
+                    -XTEND PRINT(..\list\DS1302.lst) OBJECT(..\Output\DS1302.obj)
+
+line level    source
+
+   1          #include <Var.h>
+   2          
+   3          void DS1302_Write_Adress(unsigned char adr)
+   4          {
+   5   1              unsigned char i,j;
+   6   1      
+   7   1              CE = 0;
+   8   1              SCLK = 0;
+   9   1              IO = 0;
+  10   1              CE = 1; 
+  11   1              delay_us(3,T0);
+  12   1              for(i = 1,j = 0x01;i <= 8;i++)
+  13   1              {
+  14   2                      SCLK = 0;
+  15   2      //              delay_us(3,T0);
+  16   2                      if(adr&j)
+  17   2                      {
+  18   3                              IO = 1;
+  19   3                      }
+  20   2                      else
+  21   2                      {
+  22   3                              IO = 0;
+  23   3                      }
+  24   2                      SCLK = 1;
+  25   2                      j = j*2;
+  26   2      //              delay_us(3,T0);
+  27   2              }
+  28   1      }
+  29          
+  30          unsigned char DS1302_Read_Data()
+  31          {
+  32   1              unsigned char i = 0;
+  33   1              unsigned char j = 0x01;
+  34   1              unsigned char dat = 0x00;
+  35   1      
+  36   1              for(i = 1;i <= 8;i++)
+  37   1              {
+  38   2                      SCLK = 0;
+  39   2      //              delay_us(3,T0);
+  40   2                      if(IO)
+  41   2                      {
+  42   3                              dat = dat|j;                    
+  43   3                      }
+  44   2                      j = j*2;
+  45   2      //              if(i < 8)
+  46   2                      {
+  47   3                              SCLK = 1;
+  48   3      //                      delay_us(3,T0);
+  49   3                      }
+  50   2              }
+  51   1              CE = 0;
+  52   1      
+  53   1              return dat;
+  54   1      }
+C51 COMPILER V9.00   DS1302                                                                07/24/2015 20:58:58 PAGE 2   
+
+  55          
+  56          void DS1302_Write_Command(unsigned char com)
+  57          {
+  58   1              unsigned char i,j;
+  59   1      
+  60   1              for(i = 1,j = 0x01;i <= 8;i++)
+  61   1              {
+  62   2                      SCLK = 0;
+  63   2      //              delay_us(3,T0);
+  64   2                      if(com&j)
+  65   2                      {
+  66   3                              IO = 1;
+  67   3                      }
+  68   2                      else
+  69   2                      {
+  70   3                              IO = 0;
+  71   3                      }
+  72   2                      SCLK = 1;
+  73   2                      j = j*2;
+  74   2      //              delay_us(3,T0);
+  75   2              }
+  76   1              SCLK = 0;
+  77   1              CE = 0;         
+  78   1      }
+  79          
+  80          void DS1302_Init(       unsigned char year,
+  81                                                  unsigned char month,
+  82                                                  unsigned char ndate,
+  83                                                  unsigned char day,
+  84                                                  unsigned char hour,
+  85                                                  unsigned char mintues,
+  86                                                  unsigned char second
+  87                                          )
+  88          {
+  89   1              DS1302_Write_Adress(0x8e);
+  90   1              DS1302_Write_Command(0x00);
+  91   1              DS1302_Write_Adress(W_Year);
+  92   1              DS1302_Write_Command(year);
+  93   1              DS1302_Write_Adress(W_Mon);
+  94   1              DS1302_Write_Command(month);
+  95   1              DS1302_Write_Adress(W_Date);
+  96   1              DS1302_Write_Command(ndate);
+  97   1              DS1302_Write_Adress(W_Day);
+  98   1              DS1302_Write_Command(day);
+  99   1              DS1302_Write_Adress(W_Hour);
+ 100   1              DS1302_Write_Command(hour);
+ 101   1              DS1302_Write_Adress(W_Min);
+ 102   1              DS1302_Write_Command(mintues);
+ 103   1              DS1302_Write_Adress(W_Sec);
+ 104   1              DS1302_Write_Command(second);
+ 105   1              DS1302_Write_Adress(0x8e);
+ 106   1              DS1302_Write_Command(0x80);             
+ 107   1      }
+ 108          
+ 109          void DS1302(unsigned char X,unsigned char Y,unsigned char adr)
+ 110          {
+ 111   1              unsigned char dat,dat1,dat2;
+ 112   1      
+ 113   1              DS1302_Write_Adress(adr);
+ 114   1              dat = DS1302_Read_Data();
+ 115   1              dat1 = (dat&0xf0)>>4;
+ 116   1              dat2 = dat&0x0f;
+C51 COMPILER V9.00   DS1302                                                                07/24/2015 20:58:58 PAGE 3   
+
+ 117   1      
+ 118   1              Lcd_display(X,Y,number[dat1]);
+ 119   1              Lcd_display(X,Y+1,number[dat2]);                
+ 120   1      }
+ 121          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    256    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----      11
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

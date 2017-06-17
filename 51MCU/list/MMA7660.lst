@@ -1,0 +1,155 @@
+C51 COMPILER V9.00   MMA7660                                                               08/09/2015 16:36:31 PAGE 1   
+
+
+C51 COMPILER V9.00, COMPILATION OF MODULE MMA7660
+OBJECT MODULE PLACED IN ..\Output\MMA7660.obj
+COMPILER INVOKED BY: D:\keil c51\C51\BIN\C51.EXE ..\src\MMA7660.c LARGE BROWSE INCDIR(..\inc;D:\keil c51\C51\INC) DEBUG 
+                    -OBJECTEXTEND PRINT(..\list\MMA7660.lst) OBJECT(..\Output\MMA7660.obj)
+
+line level    source
+
+   1          #include <Var.h>
+   2          
+   3          #define MMA7660_SlaveAddress   0x98       //定义器件在IIC总线中的从地址
+   4          
+   5          unsigned char BUF[3];                         //接收数据缓存区          
+   6          
+   7          void Multiple_read_MMA7660()                      //连续读出HMC5883内部角度数据，地址范围0x3~0x5
+   8          {   
+   9   1              unsigned char i;
+  10   1          I2C_Start();                          //起始信号
+  11   1          I2C_SendByte(MMA7660_SlaveAddress);           //发送设备地址+写信号
+  12   1          I2C_SendByte(0x00);                   //发送存储单元地址，从0x3开始 
+  13   1          I2C_Start();                          //起始信号
+  14   1          I2C_SendByte(MMA7660_SlaveAddress+1);         //发送设备地址+读信号
+  15   1              for (i=0; i<3; i++)                      //连续读取6个地址数据，存储中BUF
+  16   1          {
+  17   2              BUF[i] = I2C_RecvByte();          //BUF[0]存储数据
+  18   2              if (i == 2)
+  19   2                      {
+  20   3                 I2C_SendACK(1);                //最后一个数据需要回NOACK
+  21   3              }
+  22   2              else
+  23   2              {
+  24   3                I2C_SendACK(0);                //回应ACK
+  25   3                      }
+  26   2              }
+  27   1          I2C_Stop();                          //停止信号
+  28   1          delay_ms(5,2);
+  29   1      }
+  30          
+  31          
+  32          void Init_MMA7660()                                              //初始化HMC5883，根据需要请参考pdf进行修改
+  33          {
+  34   1              Single_WriteI2C(MMA7660_SlaveAddress,0x07,0x00); 
+  35   1              Single_WriteI2C(MMA7660_SlaveAddress,0x06,0x10);
+  36   1              Single_WriteI2C(MMA7660_SlaveAddress,0x05,0xf0);
+  37   1              Single_WriteI2C(MMA7660_SlaveAddress,0x09,0xe0);
+  38   1              Single_WriteI2C(MMA7660_SlaveAddress,0x08,0xf1);
+  39   1              Single_WriteI2C(MMA7660_SlaveAddress,0x0A,0x00);
+  40   1              Single_WriteI2C(MMA7660_SlaveAddress,0x07,0x39); 
+  41   1      }
+  42                                                                          
+  43          float MMA7660(unsigned char flag)
+  44          { 
+  45   1              unsigned char x,y,z;
+  46   1              float value;
+  47   1                              
+  48   1              Init_MMA7660();
+  49   1              Multiple_read_MMA7660();      //连续读出数据，存储在BUF中
+  50   1          x=BUF[0]; 
+  51   1          y=BUF[1]; 
+  52   1          z=BUF[2]; 
+  53   1      
+  54   1              switch(flag)
+C51 COMPILER V9.00   MMA7660                                                               08/09/2015 16:36:31 PAGE 2   
+
+  55   1              {
+  56   2                      case M_GX:      x = x&0x3f;
+  57   2                                              if(x&0x20)
+  58   2                                              {
+  59   3                                                      x = ((~x)+1)&0x3f;
+  60   3                                                      Lcd_display(1,0,'-');
+  61   3                                              }
+  62   2                                              value = x*0.047;
+  63   2                                              break;
+  64   2                      case M_GY:      y = y&0x3f;
+  65   2                                              if(y&0x20)
+  66   2                                              {
+  67   3                                                      y = ((~y)+1)&0x3f;
+  68   3                                                      Lcd_display(1,0,'-');
+  69   3                                              }
+  70   2                                              value = y*0.047;
+  71   2                                              break;
+  72   2                      case M_GZ:      z = z&0x3f;
+  73   2                                              if(z&0x20)
+  74   2                                              {
+  75   3                                                      z = ((~z)+1)&0x3f;
+  76   3                                                      Lcd_display(1,0,'-');
+  77   3                                              }
+  78   2                                              value = z*0.047;
+  79   2                                              break;
+  80   2                      case M_AX:      x = x&0x3f;
+  81   2                                              if(x&0x20)
+  82   2                                              {
+  83   3                                                      x = ((~x)+1)&0x3f;
+  84   3                                                      Lcd_display(1,0,'-');
+  85   3                                              }
+  86   2                                              value = x*2.69;
+  87   2                                              break;
+  88   2                      case M_AY:      y = y&0x3f;
+  89   2                                              if(y&0x20)
+  90   2                                              {
+  91   3                                                      y = ((~y)+1)&0x3f;
+  92   3                                                      Lcd_display(1,0,'-');
+  93   3                                              }
+  94   2                                              value = y*2.69;
+  95   2                                              break;
+  96   2                      case M_AZ:z = z&0x3f;
+  97   2                                              if(z&0x20)
+  98   2                                              {
+  99   3                                                      z = ((~z)+1)&0x3f;
+ 100   3                                                      Lcd_display(1,0,'-');
+ 101   3                                              }
+ 102   2                                              value = 90.0-z*2.69;
+ 103   2                                              break;
+ 104   2              }
+ 105   1              switch(flag)
+ 106   1              {
+ 107   2                      case M_GX:
+ 108   2                      case M_GY:
+ 109   2                      case M_GZ:      Lcd_display(1,1,number[((unsigned int)(value*1000))/1000]);
+ 110   2                                              Lcd_display(1,2,'.');
+ 111   2                                              Lcd_display(1,3,number[((unsigned int)(value*1000))/100%10]); 
+ 112   2                                              Lcd_display(1,4,number[((unsigned int)(value*1000))/10%10]);
+ 113   2                                              Lcd_display(1,5,number[((unsigned int)(value*1000))%10]);
+ 114   2                                              break;
+ 115   2                      case M_AX:
+ 116   2                      case M_AY:
+C51 COMPILER V9.00   MMA7660                                                               08/09/2015 16:36:31 PAGE 3   
+
+ 117   2                      case M_AZ:      Lcd_display(1,1,number[((unsigned int)(value*100))/1000]);
+ 118   2                                              Lcd_display(1,2,number[((unsigned int)(value*100))/100%10]);
+ 119   2                                              Lcd_display(1,3,'.');
+ 120   2                                              Lcd_display(1,4,number[((unsigned int)(value*100))/10%10]);
+ 121   2                                              Lcd_display(1,5,number[((unsigned int)(value*100))%10]);
+ 122   2                                              break; 
+ 123   2              }
+ 124   1           
+ 125   1              
+ 126   1              return value;               
+ 127   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    941    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =      3       9
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

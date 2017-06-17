@@ -1,0 +1,8 @@
+"..\Output\STARTUP.obj",
+"..\Output\main.obj",
+"..\Output\Init.obj",
+"..\Output\Timer.obj",
+"..\Output\Uart_Init.obj",
+"..\Output\shumaguan.obj" 
+TO "..\Output\demo" 
+PRINT("..\list\demo.m51") RAMSIZE(256) 

@@ -1,0 +1,1519 @@
+C51 COMPILER V9.00   INV_MPU_DMP_MOTION_DRIVER                                             07/25/2015 16:10:17 PAGE 1   
+
+
+C51 COMPILER V9.00, COMPILATION OF MODULE INV_MPU_DMP_MOTION_DRIVER
+OBJECT MODULE PLACED IN ..\Output\inv_mpu_dmp_motion_driver.obj
+COMPILER INVOKED BY: D:\keil c51\C51\BIN\C51.EXE ..\src\inv_mpu_dmp_motion_driver.c BROWSE INCDIR(..\inc;D:\keil c51\C51
+                    -\INC) DEBUG OBJECTEXTEND PRINT(..\list\inv_mpu_dmp_motion_driver.lst) OBJECT(..\Output\inv_mpu_dmp_motion_driver.obj)
+
+line level    source
+
+   1          /*
+   2           $License:
+   3              Copyright (C) 2011-2012 InvenSense Corporation, All Rights Reserved.
+   4              See included License.txt for License information.
+   5           $
+   6           */
+   7          /**
+   8           *  @addtogroup  DRIVERS Sensor Driver Layer
+   9           *  @brief       Hardware drivers to communicate with sensors via I2C.
+  10           *
+  11           *  @{
+  12           *      @file       inv_mpu_dmp_motion_driver.c
+  13           *      @brief      DMP image and interface functions.
+  14           *      @details    All functions are preceded by the dmp_ prefix to
+  15           *                  differentiate among MPL and general driver function calls.
+  16           */
+  17          //#include "stm32f10x.h"
+  18          #include <stdio.h>
+  19          #include <stdint.h>
+*** WARNING C318 IN LINE 19 OF ..\src\inv_mpu_dmp_motion_driver.c: can't open file 'stdint.h'
+  20          #include <stdlib.h>
+  21          #include <string.h>
+  22          #include <math.h>
+  23          #include "inv_mpu.h"
+*** ERROR C141 IN LINE 108 OF ..\INC\INV_MPU.H: syntax error near ','
+*** ERROR C141 IN LINE 109 OF ..\INC\INV_MPU.H: syntax error near ','
+*** ERROR C141 IN LINE 110 OF ..\INC\INV_MPU.H: syntax error near ','
+*** ERROR C141 IN LINE 111 OF ..\INC\INV_MPU.H: syntax error near ','
+*** ERROR C141 IN LINE 116 OF ..\INC\INV_MPU.H: syntax error near ','
+*** ERROR C141 IN LINE 121 OF ..\INC\INV_MPU.H: syntax error near ')'
+*** ERROR C141 IN LINE 123 OF ..\INC\INV_MPU.H: syntax error near ')'
+*** ERROR C141 IN LINE 128 OF ..\INC\INV_MPU.H: syntax error near ')'
+  24          #include "inv_mpu_dmp_motion_driver.h"
+  25          #include "dmpKey.h"
+  26          #include "dmpmap.h"
+  27          #include "Time.h"
+*** WARNING C318 IN LINE 27 OF ..\src\inv_mpu_dmp_motion_driver.c: can't open file 'Time.h'
+  28          #include "delay.h"
+*** WARNING C318 IN LINE 28 OF ..\src\inv_mpu_dmp_motion_driver.c: can't open file 'delay.h'
+  29          
+  30          #define  MOTION_DRIVER_TARGET_MSP430
+  31          /* The following functions must be defined for this platform:
+  32           * i2c_write(unsigned char slave_addr, unsigned char reg_addr,
+  33           *      unsigned char length, unsigned char const *data)
+  34           * i2c_read(unsigned char slave_addr, unsigned char reg_addr,
+  35           *      unsigned char length, unsigned char *data)
+  36           * delay_ms(unsigned long num_ms)
+  37           * get_ms(unsigned long *count)
+  38           */
+  39          #if defined MOTION_DRIVER_TARGET_MSP430
+  40          //#include "msp430.h"
+  41          //#include "msp430_clock.h"
+  42          #define delay_ms    delay_ms
+  43          #define get_ms      get_ms
+C51 COMPILER V9.00   INV_MPU_DMP_MOTION_DRIVER                                             07/25/2015 16:10:17 PAGE 2   
+
+  44          #define log_i(...)     do {} while (0)
+*** ERROR C301 IN LINE 44 OF ..\src\inv_mpu_dmp_motion_driver.c: identifier expected
+*** ERROR C304 IN LINE 44 OF ..\src\inv_mpu_dmp_motion_driver.c: bad macro parameter list
+  45          #define log_e(...)     do {} while (0)
+*** ERROR C301 IN LINE 45 OF ..\src\inv_mpu_dmp_motion_driver.c: identifier expected
+*** ERROR C304 IN LINE 45 OF ..\src\inv_mpu_dmp_motion_driver.c: bad macro parameter list
+  46          
+  47          #elif defined EMPL_TARGET_MSP430
+              #include "msp430.h"
+              #include "msp430_clock.h"
+              #include "log.h"
+              #define delay_ms    msp430_delay_ms
+              #define get_ms      msp430_get_clock_ms
+              #define log_i       MPL_LOGI
+              #define log_e       MPL_LOGE
+              
+              #elif defined EMPL_TARGET_UC3L0
+              /* Instead of using the standard TWI driver from the ASF library, we're using
+               * a TWI driver that follows the slave address + register address convention.
+               */
+              #include "delay.h"
+              #include "sysclk.h"
+              #include "log.h"
+              #include "uc3l0_clock.h"
+              /* delay_ms is a function already defined in ASF. */
+              #define get_ms  uc3l0_get_clock_ms
+              #define log_i       MPL_LOGI
+              #define log_e       MPL_LOGE
+              
+              #else
+              //#error  Gyro driver is missing the system layer implementations.
+              #endif
+  72          
+  73          /* These defines are copied from dmpDefaultMPU6050.c in the general MPL
+  74           * releases. These defines may change for each DMP image, so be sure to modify
+  75           * these values when switching to a new image.
+  76           */
+  77          #define CFG_LP_QUAT             (2712)
+  78          #define END_ORIENT_TEMP         (1866)
+  79          #define CFG_27                  (2742)
+  80          #define CFG_20                  (2224)
+  81          #define CFG_23                  (2745)
+  82          #define CFG_FIFO_ON_EVENT       (2690)
+  83          #define END_PREDICTION_UPDATE   (1761)
+  84          #define CGNOTICE_INTR           (2620)
+  85          #define X_GRT_Y_TMP             (1358)
+  86          #define CFG_DR_INT              (1029)
+  87          #define CFG_AUTH                (1035)
+  88          #define UPDATE_PROP_ROT         (1835)
+  89          #define END_COMPARE_Y_X_TMP2    (1455)
+  90          #define SKIP_X_GRT_Y_TMP        (1359)
+  91          #define SKIP_END_COMPARE        (1435)
+  92          #define FCFG_3                  (1088)
+  93          #define FCFG_2                  (1066)
+  94          #define FCFG_1                  (1062)
+  95          #define END_COMPARE_Y_X_TMP3    (1434)
+  96          #define FCFG_7                  (1073)
+  97          #define FCFG_6                  (1106)
+  98          #define FLAT_STATE_END          (1713)
+  99          #define SWING_END_4             (1616)
+ 100          #define SWING_END_2             (1565)
+ 101          #define SWING_END_3             (1587)
+C51 COMPILER V9.00   INV_MPU_DMP_MOTION_DRIVER                                             07/25/2015 16:10:17 PAGE 3   
+
+ 102          #define SWING_END_1             (1550)
+ 103          #define CFG_8                   (2718)
+ 104          #define CFG_15                  (2727)
+ 105          #define CFG_16                  (2746)
+ 106          #define CFG_EXT_GYRO_BIAS       (1189)
+ 107          #define END_COMPARE_Y_X_TMP     (1407)
+ 108          #define DO_NOT_UPDATE_PROP_ROT  (1839)
+ 109          #define CFG_7                   (1205)
+ 110          #define FLAT_STATE_END_TEMP     (1683)
+ 111          #define END_COMPARE_Y_X         (1484)
+ 112          #define SKIP_SWING_END_1        (1551)
+ 113          #define SKIP_SWING_END_3        (1588)
+ 114          #define SKIP_SWING_END_2        (1566)
+ 115          #define TILTG75_START           (1672)
+ 116          #define CFG_6                   (2753)
+ 117          #define TILTL75_END             (1669)
+ 118          #define END_ORIENT              (1884)
+ 119          #define CFG_FLICK_IN            (2573)
+ 120          #define TILTL75_START           (1643)
+ 121          #define CFG_MOTION_BIAS         (1208)
+ 122          #define X_GRT_Y                 (1408)
+ 123          #define TEMPLABEL               (2324)
+ 124          #define CFG_ANDROID_ORIENT_INT  (1853)
+ 125          #define CFG_GYRO_RAW_DATA       (2722)
+ 126          #define X_GRT_Y_TMP2            (1379)
+ 127          
+ 128          #define D_0_22                  (22+512)
+ 129          #define D_0_24                  (24+512)
+ 130          
+ 131          #define D_0_36                  (36)
+ 132          #define D_0_52                  (52)
+ 133          #define D_0_96                  (96)
+ 134          #define D_0_104                 (104)
+ 135          #define D_0_108                 (108)
+ 136          #define D_0_163                 (163)
+ 137          #define D_0_188                 (188)
+ 138          #define D_0_192                 (192)
+ 139          #define D_0_224                 (224)
+ 140          #define D_0_228                 (228)
+ 141          #define D_0_232                 (232)
+ 142          #define D_0_236                 (236)
+ 143          
+ 144          #define D_1_2                   (256 + 2)
+ 145          #define D_1_4                   (256 + 4)
+ 146          #define D_1_8                   (256 + 8)
+ 147          #define D_1_10                  (256 + 10)
+ 148          #define D_1_24                  (256 + 24)
+ 149          #define D_1_28                  (256 + 28)
+ 150          #define D_1_36                  (256 + 36)
+ 151          #define D_1_40                  (256 + 40)
+ 152          #define D_1_44                  (256 + 44)
+ 153          #define D_1_72                  (256 + 72)
+ 154          #define D_1_74                  (256 + 74)
+ 155          #define D_1_79                  (256 + 79)
+ 156          #define D_1_88                  (256 + 88)
+ 157          #define D_1_90                  (256 + 90)
+ 158          #define D_1_92                  (256 + 92)
+ 159          #define D_1_96                  (256 + 96)
+ 160          #define D_1_98                  (256 + 98)
+ 161          #define D_1_106                 (256 + 106)
+ 162          #define D_1_108                 (256 + 108)
+ 163          #define D_1_112                 (256 + 112)
+C51 COMPILER V9.00   INV_MPU_DMP_MOTION_DRIVER                                             07/25/2015 16:10:17 PAGE 4   
+
+ 164          #define D_1_128                 (256 + 144)
+ 165          #define D_1_152                 (256 + 12)
+ 166          #define D_1_160                 (256 + 160)
+ 167          #define D_1_176                 (256 + 176)
+ 168          #define D_1_178                 (256 + 178)
+ 169          #define D_1_218                 (256 + 218)
+ 170          #define D_1_232                 (256 + 232)
+ 171          #define D_1_236                 (256 + 236)
+ 172          #define D_1_240                 (256 + 240)
+ 173          #define D_1_244                 (256 + 244)
+ 174          #define D_1_250                 (256 + 250)
+ 175          #define D_1_252                 (256 + 252)
+ 176          #define D_2_12                  (512 + 12)
+ 177          #define D_2_96                  (512 + 96)
+ 178          #define D_2_108                 (512 + 108)
+ 179          #define D_2_208                 (512 + 208)
+ 180          #define D_2_224                 (512 + 224)
+ 181          #define D_2_236                 (512 + 236)
+ 182          #define D_2_244                 (512 + 244)
+ 183          #define D_2_248                 (512 + 248)
+ 184          #define D_2_252                 (512 + 252)
+ 185          
+ 186          #define CPASS_BIAS_X            (35 * 16 + 4)
+ 187          #define CPASS_BIAS_Y            (35 * 16 + 8)
+ 188          #define CPASS_BIAS_Z            (35 * 16 + 12)
+ 189          #define CPASS_MTX_00            (36 * 16)
+ 190          #define CPASS_MTX_01            (36 * 16 + 4)
+ 191          #define CPASS_MTX_02            (36 * 16 + 8)
+ 192          #define CPASS_MTX_10            (36 * 16 + 12)
+ 193          #define CPASS_MTX_11            (37 * 16)
+ 194          #define CPASS_MTX_12            (37 * 16 + 4)
+ 195          #define CPASS_MTX_20            (37 * 16 + 8)
+ 196          #define CPASS_MTX_21            (37 * 16 + 12)
+ 197          #define CPASS_MTX_22            (43 * 16 + 12)
+ 198          #define D_EXT_GYRO_BIAS_X       (61 * 16)
+ 199          #define D_EXT_GYRO_BIAS_Y       (61 * 16) + 4
+ 200          #define D_EXT_GYRO_BIAS_Z       (61 * 16) + 8
+ 201          #define D_ACT0                  (40 * 16)
+ 202          #define D_ACSX                  (40 * 16 + 4)
+ 203          #define D_ACSY                  (40 * 16 + 8)
+ 204          #define D_ACSZ                  (40 * 16 + 12)
+ 205          
+ 206          #define FLICK_MSG               (45 * 16 + 4)
+ 207          #define FLICK_COUNTER           (45 * 16 + 8)
+ 208          #define FLICK_LOWER             (45 * 16 + 12)
+ 209          #define FLICK_UPPER             (46 * 16 + 12)
+ 210          
+ 211          #define D_AUTH_OUT              (992)
+ 212          #define D_AUTH_IN               (996)
+ 213          #define D_AUTH_A                (1000)
+ 214          #define D_AUTH_B                (1004)
+ 215          
+ 216          #define D_PEDSTD_BP_B           (768 + 0x1C)
+ 217          #define D_PEDSTD_HP_A           (768 + 0x78)
+ 218          #define D_PEDSTD_HP_B           (768 + 0x7C)
+ 219          #define D_PEDSTD_BP_A4          (768 + 0x40)
+ 220          #define D_PEDSTD_BP_A3          (768 + 0x44)
+ 221          #define D_PEDSTD_BP_A2          (768 + 0x48)
+ 222          #define D_PEDSTD_BP_A1          (768 + 0x4C)
+ 223          #define D_PEDSTD_INT_THRSH      (768 + 0x68)
+ 224          #define D_PEDSTD_CLIP           (768 + 0x6C)
+ 225          #define D_PEDSTD_SB             (768 + 0x28)
+C51 COMPILER V9.00   INV_MPU_DMP_MOTION_DRIVER                                             07/25/2015 16:10:17 PAGE 5   
+
+ 226          #define D_PEDSTD_SB_TIME        (768 + 0x2C)
+ 227          #define D_PEDSTD_PEAKTHRSH      (768 + 0x98)
+ 228          #define D_PEDSTD_TIML           (768 + 0x2A)
+ 229          #define D_PEDSTD_TIMH           (768 + 0x2E)
+ 230          #define D_PEDSTD_PEAK           (768 + 0X94)
+ 231          #define D_PEDSTD_STEPCTR        (768 + 0x60)
+ 232          #define D_PEDSTD_TIMECTR        (964)
+ 233          #define D_PEDSTD_DECI           (768 + 0xA0)
+ 234          
+ 235          #define D_HOST_NO_MOT           (976)
+ 236          #define D_ACCEL_BIAS            (660)
+ 237          
+ 238          #define D_ORIENT_GAP            (76)
+ 239          
+ 240          #define D_TILT0_H               (48)
+ 241          #define D_TILT0_L               (50)
+ 242          #define D_TILT1_H               (52)
+ 243          #define D_TILT1_L               (54)
+ 244          #define D_TILT2_H               (56)
+ 245          #define D_TILT2_L               (58)
+ 246          #define D_TILT3_H               (60)
+ 247          #define D_TILT3_L               (62)
+ 248          
+ 249          #define DMP_CODE_SIZE           (3062)
+ 250          
+ 251          static const unsigned char dmp_memory[DMP_CODE_SIZE] = {
+ 252              /* bank # 0 */
+ 253              0x00, 0x00, 0x70, 0x00, 0x00, 0x00, 0x00, 0x24, 0x00, 0x00, 0x00, 0x02, 0x00, 0x03, 0x00, 0x00,
+ 254              0x00, 0x65, 0x00, 0x54, 0xff, 0xef, 0x00, 0x00, 0xfa, 0x80, 0x00, 0x0b, 0x12, 0x82, 0x00, 0x01,
+ 255              0x03, 0x0c, 0x30, 0xc3, 0x0e, 0x8c, 0x8c, 0xe9, 0x14, 0xd5, 0x40, 0x02, 0x13, 0x71, 0x0f, 0x8e,
+ 256              0x38, 0x83, 0xf8, 0x83, 0x30, 0x00, 0xf8, 0x83, 0x25, 0x8e, 0xf8, 0x83, 0x30, 0x00, 0xf8, 0x83,
+ 257              0xff, 0xff, 0xff, 0xff, 0x0f, 0xfe, 0xa9, 0xd6, 0x24, 0x00, 0x04, 0x00, 0x1a, 0x82, 0x79, 0xa1,
+ 258              0x00, 0x00, 0x00, 0x3c, 0xff, 0xff, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x38, 0x83, 0x6f, 0xa2,
+ 259              0x00, 0x3e, 0x03, 0x30, 0x40, 0x00, 0x00, 0x00, 0x02, 0xca, 0xe3, 0x09, 0x3e, 0x80, 0x00, 0x00,
+ 260              0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x60, 0x00, 0x00, 0x00,
+ 261              0x00, 0x0c, 0x00, 0x00, 0x00, 0x0c, 0x18, 0x6e, 0x00, 0x00, 0x06, 0x92, 0x0a, 0x16, 0xc0, 0xdf,
+ 262              0xff, 0xff, 0x02, 0x56, 0xfd, 0x8c, 0xd3, 0x77, 0xff, 0xe1, 0xc4, 0x96, 0xe0, 0xc5, 0xbe, 0xaa,
+ 263              0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0x0b, 0x2b, 0x00, 0x00, 0x16, 0x57, 0x00, 0x00, 0x03, 0x59,
+ 264              0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1d, 0xfa, 0x00, 0x02, 0x6c, 0x1d, 0x00, 0x00, 0x00, 0x00,
+ 265              0x3f, 0xff, 0xdf, 0xeb, 0x00, 0x3e, 0xb3, 0xb6, 0x00, 0x0d, 0x22, 0x78, 0x00, 0x00, 0x2f, 0x3c,
+ 266              0x00, 0x00, 0x00, 0x00, 0x00, 0x19, 0x42, 0xb5, 0x00, 0x00, 0x39, 0xa2, 0x00, 0x00, 0xb3, 0x65,
+ 267              0xd9, 0x0e, 0x9f, 0xc9, 0x1d, 0xcf, 0x4c, 0x34, 0x30, 0x00, 0x00, 0x00, 0x50, 0x00, 0x00, 0x00,
+ 268              0x3b, 0xb6, 0x7a, 0xe8, 0x00, 0x64, 0x00, 0x00, 0x00, 0xc8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 269              /* bank # 1 */
+ 270              0x10, 0x00, 0x00, 0x00, 0x10, 0x00, 0xfa, 0x92, 0x10, 0x00, 0x22, 0x5e, 0x00, 0x0d, 0x22, 0x9f,
+ 271              0x00, 0x01, 0x00, 0x00, 0x00, 0x32, 0x00, 0x00, 0xff, 0x46, 0x00, 0x00, 0x63, 0xd4, 0x00, 0x00,
+ 272              0x10, 0x00, 0x00, 0x00, 0x04, 0xd6, 0x00, 0x00, 0x04, 0xcc, 0x00, 0x00, 0x04, 0xcc, 0x00, 0x00,
+ 273              0x00, 0x00, 0x10, 0x72, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 274              0x00, 0x06, 0x00, 0x02, 0x00, 0x05, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x64, 0x00, 0x00,
+ 275              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05, 0x00, 0x05, 0x00, 0x64, 0x00, 0x20, 0x00, 0x00,
+ 276              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x03, 0x00,
+ 277              0x00, 0x00, 0x00, 0x32, 0xf8, 0x98, 0x00, 0x00, 0xff, 0x65, 0x00, 0x00, 0x83, 0x0f, 0x00, 0x00,
+ 278              0xff, 0x9b, 0xfc, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 279              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 280              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00,
+ 281              0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0xb2, 0x6a, 0x00, 0x02, 0x00, 0x00,
+ 282              0x00, 0x01, 0xfb, 0x83, 0x00, 0x68, 0x00, 0x00, 0x00, 0xd9, 0xfc, 0x00, 0x7c, 0xf1, 0xff, 0x83,
+ 283              0x00, 0x00, 0x00, 0x00, 0x00, 0x65, 0x00, 0x00, 0x00, 0x64, 0x03, 0xe8, 0x00, 0x64, 0x00, 0x28,
+ 284              0x00, 0x00, 0x00, 0x25, 0x00, 0x00, 0x00, 0x00, 0x16, 0xa0, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00,
+ 285              0x00, 0x00, 0x10, 0x00, 0x00, 0x2f, 0x00, 0x00, 0x00, 0x00, 0x01, 0xf4, 0x00, 0x00, 0x10, 0x00,
+ 286              /* bank # 2 */
+ 287              0x00, 0x28, 0x00, 0x00, 0xff, 0xff, 0x45, 0x81, 0xff, 0xff, 0xfa, 0x72, 0x00, 0x00, 0x00, 0x00,
+C51 COMPILER V9.00   INV_MPU_DMP_MOTION_DRIVER                                             07/25/2015 16:10:17 PAGE 6   
+
+ 288              0x00, 0x00, 0x00, 0x00, 0x00, 0x44, 0x00, 0x05, 0x00, 0x05, 0xba, 0xc6, 0x00, 0x47, 0x78, 0xa2,
+ 289              0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x00, 0x14,
+ 290              0x00, 0x00, 0x25, 0x4d, 0x00, 0x2f, 0x70, 0x6d, 0x00, 0x00, 0x05, 0xae, 0x00, 0x0c, 0x02, 0xd0,
+ 291              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 292              0x00, 0x1b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 293              0x00, 0x64, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 294              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 295              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 296              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 297              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 298              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 299              0x00, 0x1b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0e, 0x00, 0x0e,
+ 300              0x00, 0x00, 0x0a, 0xc7, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x32, 0xff, 0xff, 0xff, 0x9c,
+ 301              0x00, 0x00, 0x0b, 0x2b, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x64,
+ 302              0xff, 0xe5, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 303              /* bank # 3 */
+ 304              0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 305              0x00, 0x01, 0x80, 0x00, 0x00, 0x01, 0x80, 0x00, 0x00, 0x01, 0x80, 0x00, 0x00, 0x24, 0x26, 0xd3,
+ 306              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06, 0x00, 0x10, 0x00, 0x96, 0x00, 0x3c,
+ 307              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 308              0x0c, 0x0a, 0x4e, 0x68, 0xcd, 0xcf, 0x77, 0x09, 0x50, 0x16, 0x67, 0x59, 0xc6, 0x19, 0xce, 0x82,
+ 309              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 310              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x17, 0xd7, 0x84, 0x00, 0x03, 0x00, 0x00, 0x00,
+ 311              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc7, 0x93, 0x8f, 0x9d, 0x1e, 0x1b, 0x1c, 0x19,
+ 312              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 313              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x03, 0x18, 0x85, 0x00, 0x00, 0x40, 0x00,
+ 314              0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 315              0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 316              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 317              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 318              0x00, 0x00, 0x00, 0x00, 0x67, 0x7d, 0xdf, 0x7e, 0x72, 0x90, 0x2e, 0x55, 0x4c, 0xf6, 0xe6, 0x88,
+ 319              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+ 320          
+ 321              /* bank # 4 */
+ 322              0xd8, 0xdc, 0xb4, 0xb8, 0xb0, 0xd8, 0xb9, 0xab, 0xf3, 0xf8, 0xfa, 0xb3, 0xb7, 0xbb, 0x8e, 0x9e,
+ 323              0xae, 0xf1, 0x32, 0xf5, 0x1b, 0xf1, 0xb4, 0xb8, 0xb0, 0x80, 0x97, 0xf1, 0xa9, 0xdf, 0xdf, 0xdf,
+ 324              0xaa, 0xdf, 0xdf, 0xdf, 0xf2, 0xaa, 0xc5, 0xcd, 0xc7, 0xa9, 0x0c, 0xc9, 0x2c, 0x97, 0xf1, 0xa9,
+ 325              0x89, 0x26, 0x46, 0x66, 0xb2, 0x89, 0x99, 0xa9, 0x2d, 0x55, 0x7d, 0xb0, 0xb0, 0x8a, 0xa8, 0x96,
+ 326              0x36, 0x56, 0x76, 0xf1, 0xba, 0xa3, 0xb4, 0xb2, 0x80, 0xc0, 0xb8, 0xa8, 0x97, 0x11, 0xb2, 0x83,
+ 327              0x98, 0xba, 0xa3, 0xf0, 0x24, 0x08, 0x44, 0x10, 0x64, 0x18, 0xb2, 0xb9, 0xb4, 0x98, 0x83, 0xf1,
+ 328              0xa3, 0x29, 0x55, 0x7d, 0xba, 0xb5, 0xb1, 0xa3, 0x83, 0x93, 0xf0, 0x00, 0x28, 0x50, 0xf5, 0xb2,
+ 329              0xb6, 0xaa, 0x83, 0x93, 0x28, 0x54, 0x7c, 0xf1, 0xb9, 0xa3, 0x82, 0x93, 0x61, 0xba, 0xa2, 0xda,
+ 330              0xde, 0xdf, 0xdb, 0x81, 0x9a, 0xb9, 0xae, 0xf5, 0x60, 0x68, 0x70, 0xf1, 0xda, 0xba, 0xa2, 0xdf,
+ 331              0xd9, 0xba, 0xa2, 0xfa, 0xb9, 0xa3, 0x82, 0x92, 0xdb, 0x31, 0xba, 0xa2, 0xd9, 0xba, 0xa2, 0xf8,
+ 332              0xdf, 0x85, 0xa4, 0xd0, 0xc1, 0xbb, 0xad, 0x83, 0xc2, 0xc5, 0xc7, 0xb8, 0xa2, 0xdf, 0xdf, 0xdf,
+ 333              0xba, 0xa0, 0xdf, 0xdf, 0xdf, 0xd8, 0xd8, 0xf1, 0xb8, 0xaa, 0xb3, 0x8d, 0xb4, 0x98, 0x0d, 0x35,
+ 334              0x5d, 0xb2, 0xb6, 0xba, 0xaf, 0x8c, 0x96, 0x19, 0x8f, 0x9f, 0xa7, 0x0e, 0x16, 0x1e, 0xb4, 0x9a,
+ 335              0xb8, 0xaa, 0x87, 0x2c, 0x54, 0x7c, 0xba, 0xa4, 0xb0, 0x8a, 0xb6, 0x91, 0x32, 0x56, 0x76, 0xb2,
+ 336              0x84, 0x94, 0xa4, 0xc8, 0x08, 0xcd, 0xd8, 0xb8, 0xb4, 0xb0, 0xf1, 0x99, 0x82, 0xa8, 0x2d, 0x55,
+ 337              0x7d, 0x98, 0xa8, 0x0e, 0x16, 0x1e, 0xa2, 0x2c, 0x54, 0x7c, 0x92, 0xa4, 0xf0, 0x2c, 0x50, 0x78,
+ 338              /* bank # 5 */
+ 339              0xf1, 0x84, 0xa8, 0x98, 0xc4, 0xcd, 0xfc, 0xd8, 0x0d, 0xdb, 0xa8, 0xfc, 0x2d, 0xf3, 0xd9, 0xba,
+ 340              0xa6, 0xf8, 0xda, 0xba, 0xa6, 0xde, 0xd8, 0xba, 0xb2, 0xb6, 0x86, 0x96, 0xa6, 0xd0, 0xf3, 0xc8,
+ 341              0x41, 0xda, 0xa6, 0xc8, 0xf8, 0xd8, 0xb0, 0xb4, 0xb8, 0x82, 0xa8, 0x92, 0xf5, 0x2c, 0x54, 0x88,
+ 342              0x98, 0xf1, 0x35, 0xd9, 0xf4, 0x18, 0xd8, 0xf1, 0xa2, 0xd0, 0xf8, 0xf9, 0xa8, 0x84, 0xd9, 0xc7,
+ 343              0xdf, 0xf8, 0xf8, 0x83, 0xc5, 0xda, 0xdf, 0x69, 0xdf, 0x83, 0xc1, 0xd8, 0xf4, 0x01, 0x14, 0xf1,
+ 344              0xa8, 0x82, 0x4e, 0xa8, 0x84, 0xf3, 0x11, 0xd1, 0x82, 0xf5, 0xd9, 0x92, 0x28, 0x97, 0x88, 0xf1,
+ 345              0x09, 0xf4, 0x1c, 0x1c, 0xd8, 0x84, 0xa8, 0xf3, 0xc0, 0xf9, 0xd1, 0xd9, 0x97, 0x82, 0xf1, 0x29,
+ 346              0xf4, 0x0d, 0xd8, 0xf3, 0xf9, 0xf9, 0xd1, 0xd9, 0x82, 0xf4, 0xc2, 0x03, 0xd8, 0xde, 0xdf, 0x1a,
+ 347              0xd8, 0xf1, 0xa2, 0xfa, 0xf9, 0xa8, 0x84, 0x98, 0xd9, 0xc7, 0xdf, 0xf8, 0xf8, 0xf8, 0x83, 0xc7,
+ 348              0xda, 0xdf, 0x69, 0xdf, 0xf8, 0x83, 0xc3, 0xd8, 0xf4, 0x01, 0x14, 0xf1, 0x98, 0xa8, 0x82, 0x2e,
+ 349              0xa8, 0x84, 0xf3, 0x11, 0xd1, 0x82, 0xf5, 0xd9, 0x92, 0x50, 0x97, 0x88, 0xf1, 0x09, 0xf4, 0x1c,
+C51 COMPILER V9.00   INV_MPU_DMP_MOTION_DRIVER                                             07/25/2015 16:10:17 PAGE 7   
+
+ 350              0xd8, 0x84, 0xa8, 0xf3, 0xc0, 0xf8, 0xf9, 0xd1, 0xd9, 0x97, 0x82, 0xf1, 0x49, 0xf4, 0x0d, 0xd8,
+ 351              0xf3, 0xf9, 0xf9, 0xd1, 0xd9, 0x82, 0xf4, 0xc4, 0x03, 0xd8, 0xde, 0xdf, 0xd8, 0xf1, 0xad, 0x88,
+ 352              0x98, 0xcc, 0xa8, 0x09, 0xf9, 0xd9, 0x82, 0x92, 0xa8, 0xf5, 0x7c, 0xf1, 0x88, 0x3a, 0xcf, 0x94,
+ 353              0x4a, 0x6e, 0x98, 0xdb, 0x69, 0x31, 0xda, 0xad, 0xf2, 0xde, 0xf9, 0xd8, 0x87, 0x95, 0xa8, 0xf2,
+ 354              0x21, 0xd1, 0xda, 0xa5, 0xf9, 0xf4, 0x17, 0xd9, 0xf1, 0xae, 0x8e, 0xd0, 0xc0, 0xc3, 0xae, 0x82,
+ 355              /* bank # 6 */
+ 356              0xc6, 0x84, 0xc3, 0xa8, 0x85, 0x95, 0xc8, 0xa5, 0x88, 0xf2, 0xc0, 0xf1, 0xf4, 0x01, 0x0e, 0xf1,
+ 357              0x8e, 0x9e, 0xa8, 0xc6, 0x3e, 0x56, 0xf5, 0x54, 0xf1, 0x88, 0x72, 0xf4, 0x01, 0x15, 0xf1, 0x98,
+ 358              0x45, 0x85, 0x6e, 0xf5, 0x8e, 0x9e, 0x04, 0x88, 0xf1, 0x42, 0x98, 0x5a, 0x8e, 0x9e, 0x06, 0x88,
+ 359              0x69, 0xf4, 0x01, 0x1c, 0xf1, 0x98, 0x1e, 0x11, 0x08, 0xd0, 0xf5, 0x04, 0xf1, 0x1e, 0x97, 0x02,
+ 360              0x02, 0x98, 0x36, 0x25, 0xdb, 0xf9, 0xd9, 0x85, 0xa5, 0xf3, 0xc1, 0xda, 0x85, 0xa5, 0xf3, 0xdf,
+ 361              0xd8, 0x85, 0x95, 0xa8, 0xf3, 0x09, 0xda, 0xa5, 0xfa, 0xd8, 0x82, 0x92, 0xa8, 0xf5, 0x78, 0xf1,
+ 362              0x88, 0x1a, 0x84, 0x9f, 0x26, 0x88, 0x98, 0x21, 0xda, 0xf4, 0x1d, 0xf3, 0xd8, 0x87, 0x9f, 0x39,
+ 363              0xd1, 0xaf, 0xd9, 0xdf, 0xdf, 0xfb, 0xf9, 0xf4, 0x0c, 0xf3, 0xd8, 0xfa, 0xd0, 0xf8, 0xda, 0xf9,
+ 364              0xf9, 0xd0, 0xdf, 0xd9, 0xf9, 0xd8, 0xf4, 0x0b, 0xd8, 0xf3, 0x87, 0x9f, 0x39, 0xd1, 0xaf, 0xd9,
+ 365              0xdf, 0xdf, 0xf4, 0x1d, 0xf3, 0xd8, 0xfa, 0xfc, 0xa8, 0x69, 0xf9, 0xf9, 0xaf, 0xd0, 0xda, 0xde,
+ 366              0xfa, 0xd9, 0xf8, 0x8f, 0x9f, 0xa8, 0xf1, 0xcc, 0xf3, 0x98, 0xdb, 0x45, 0xd9, 0xaf, 0xdf, 0xd0,
+ 367              0xf8, 0xd8, 0xf1, 0x8f, 0x9f, 0xa8, 0xca, 0xf3, 0x88, 0x09, 0xda, 0xaf, 0x8f, 0xcb, 0xf8, 0xd8,
+ 368              0xf2, 0xad, 0x97, 0x8d, 0x0c, 0xd9, 0xa5, 0xdf, 0xf9, 0xba, 0xa6, 0xf3, 0xfa, 0xf4, 0x12, 0xf2,
+ 369              0xd8, 0x95, 0x0d, 0xd1, 0xd9, 0xba, 0xa6, 0xf3, 0xfa, 0xda, 0xa5, 0xf2, 0xc1, 0xba, 0xa6, 0xf3,
+ 370              0xdf, 0xd8, 0xf1, 0xba, 0xb2, 0xb6, 0x86, 0x96, 0xa6, 0xd0, 0xca, 0xf3, 0x49, 0xda, 0xa6, 0xcb,
+ 371              0xf8, 0xd8, 0xb0, 0xb4, 0xb8, 0xd8, 0xad, 0x84, 0xf2, 0xc0, 0xdf, 0xf1, 0x8f, 0xcb, 0xc3, 0xa8,
+ 372              /* bank # 7 */
+ 373              0xb2, 0xb6, 0x86, 0x96, 0xc8, 0xc1, 0xcb, 0xc3, 0xf3, 0xb0, 0xb4, 0x88, 0x98, 0xa8, 0x21, 0xdb,
+ 374              0x71, 0x8d, 0x9d, 0x71, 0x85, 0x95, 0x21, 0xd9, 0xad, 0xf2, 0xfa, 0xd8, 0x85, 0x97, 0xa8, 0x28,
+ 375              0xd9, 0xf4, 0x08, 0xd8, 0xf2, 0x8d, 0x29, 0xda, 0xf4, 0x05, 0xd9, 0xf2, 0x85, 0xa4, 0xc2, 0xf2,
+ 376              0xd8, 0xa8, 0x8d, 0x94, 0x01, 0xd1, 0xd9, 0xf4, 0x11, 0xf2, 0xd8, 0x87, 0x21, 0xd8, 0xf4, 0x0a,
+ 377              0xd8, 0xf2, 0x84, 0x98, 0xa8, 0xc8, 0x01, 0xd1, 0xd9, 0xf4, 0x11, 0xd8, 0xf3, 0xa4, 0xc8, 0xbb,
+ 378              0xaf, 0xd0, 0xf2, 0xde, 0xf8, 0xf8, 0xf8, 0xf8, 0xf8, 0xf8, 0xf8, 0xf8, 0xd8, 0xf1, 0xb8, 0xf6,
+ 379              0xb5, 0xb9, 0xb0, 0x8a, 0x95, 0xa3, 0xde, 0x3c, 0xa3, 0xd9, 0xf8, 0xd8, 0x5c, 0xa3, 0xd9, 0xf8,
+ 380              0xd8, 0x7c, 0xa3, 0xd9, 0xf8, 0xd8, 0xf8, 0xf9, 0xd1, 0xa5, 0xd9, 0xdf, 0xda, 0xfa, 0xd8, 0xb1,
+ 381              0x85, 0x30, 0xf7, 0xd9, 0xde, 0xd8, 0xf8, 0x30, 0xad, 0xda, 0xde, 0xd8, 0xf2, 0xb4, 0x8c, 0x99,
+ 382              0xa3, 0x2d, 0x55, 0x7d, 0xa0, 0x83, 0xdf, 0xdf, 0xdf, 0xb5, 0x91, 0xa0, 0xf6, 0x29, 0xd9, 0xfb,
+ 383              0xd8, 0xa0, 0xfc, 0x29, 0xd9, 0xfa, 0xd8, 0xa0, 0xd0, 0x51, 0xd9, 0xf8, 0xd8, 0xfc, 0x51, 0xd9,
+ 384              0xf9, 0xd8, 0x79, 0xd9, 0xfb, 0xd8, 0xa0, 0xd0, 0xfc, 0x79, 0xd9, 0xfa, 0xd8, 0xa1, 0xf9, 0xf9,
+ 385              0xf9, 0xf9, 0xf9, 0xa0, 0xda, 0xdf, 0xdf, 0xdf, 0xd8, 0xa1, 0xf8, 0xf8, 0xf8, 0xf8, 0xf8, 0xac,
+ 386              0xde, 0xf8, 0xad, 0xde, 0x83, 0x93, 0xac, 0x2c, 0x54, 0x7c, 0xf1, 0xa8, 0xdf, 0xdf, 0xdf, 0xf6,
+ 387              0x9d, 0x2c, 0xda, 0xa0, 0xdf, 0xd9, 0xfa, 0xdb, 0x2d, 0xf8, 0xd8, 0xa8, 0x50, 0xda, 0xa0, 0xd0,
+ 388              0xde, 0xd9, 0xd0, 0xf8, 0xf8, 0xf8, 0xdb, 0x55, 0xf8, 0xd8, 0xa8, 0x78, 0xda, 0xa0, 0xd0, 0xdf,
+ 389              /* bank # 8 */
+ 390              0xd9, 0xd0, 0xfa, 0xf8, 0xf8, 0xf8, 0xf8, 0xdb, 0x7d, 0xf8, 0xd8, 0x9c, 0xa8, 0x8c, 0xf5, 0x30,
+ 391              0xdb, 0x38, 0xd9, 0xd0, 0xde, 0xdf, 0xa0, 0xd0, 0xde, 0xdf, 0xd8, 0xa8, 0x48, 0xdb, 0x58, 0xd9,
+ 392              0xdf, 0xd0, 0xde, 0xa0, 0xdf, 0xd0, 0xde, 0xd8, 0xa8, 0x68, 0xdb, 0x70, 0xd9, 0xdf, 0xdf, 0xa0,
+ 393              0xdf, 0xdf, 0xd8, 0xf1, 0xa8, 0x88, 0x90, 0x2c, 0x54, 0x7c, 0x98, 0xa8, 0xd0, 0x5c, 0x38, 0xd1,
+ 394              0xda, 0xf2, 0xae, 0x8c, 0xdf, 0xf9, 0xd8, 0xb0, 0x87, 0xa8, 0xc1, 0xc1, 0xb1, 0x88, 0xa8, 0xc6,
+ 395              0xf9, 0xf9, 0xda, 0x36, 0xd8, 0xa8, 0xf9, 0xda, 0x36, 0xd8, 0xa8, 0xf9, 0xda, 0x36, 0xd8, 0xa8,
+ 396              0xf9, 0xda, 0x36, 0xd8, 0xa8, 0xf9, 0xda, 0x36, 0xd8, 0xf7, 0x8d, 0x9d, 0xad, 0xf8, 0x18, 0xda,
+ 397              0xf2, 0xae, 0xdf, 0xd8, 0xf7, 0xad, 0xfa, 0x30, 0xd9, 0xa4, 0xde, 0xf9, 0xd8, 0xf2, 0xae, 0xde,
+ 398              0xfa, 0xf9, 0x83, 0xa7, 0xd9, 0xc3, 0xc5, 0xc7, 0xf1, 0x88, 0x9b, 0xa7, 0x7a, 0xad, 0xf7, 0xde,
+ 399              0xdf, 0xa4, 0xf8, 0x84, 0x94, 0x08, 0xa7, 0x97, 0xf3, 0x00, 0xae, 0xf2, 0x98, 0x19, 0xa4, 0x88,
+ 400              0xc6, 0xa3, 0x94, 0x88, 0xf6, 0x32, 0xdf, 0xf2, 0x83, 0x93, 0xdb, 0x09, 0xd9, 0xf2, 0xaa, 0xdf,
+ 401              0xd8, 0xd8, 0xae, 0xf8, 0xf9, 0xd1, 0xda, 0xf3, 0xa4, 0xde, 0xa7, 0xf1, 0x88, 0x9b, 0x7a, 0xd8,
+ 402              0xf3, 0x84, 0x94, 0xae, 0x19, 0xf9, 0xda, 0xaa, 0xf1, 0xdf, 0xd8, 0xa8, 0x81, 0xc0, 0xc3, 0xc5,
+ 403              0xc7, 0xa3, 0x92, 0x83, 0xf6, 0x28, 0xad, 0xde, 0xd9, 0xf8, 0xd8, 0xa3, 0x50, 0xad, 0xd9, 0xf8,
+ 404              0xd8, 0xa3, 0x78, 0xad, 0xd9, 0xf8, 0xd8, 0xf8, 0xf9, 0xd1, 0xa1, 0xda, 0xde, 0xc3, 0xc5, 0xc7,
+ 405              0xd8, 0xa1, 0x81, 0x94, 0xf8, 0x18, 0xf2, 0xb0, 0x89, 0xac, 0xc3, 0xc5, 0xc7, 0xf1, 0xd8, 0xb8,
+ 406              /* bank # 9 */
+ 407              0xb4, 0xb0, 0x97, 0x86, 0xa8, 0x31, 0x9b, 0x06, 0x99, 0x07, 0xab, 0x97, 0x28, 0x88, 0x9b, 0xf0,
+ 408              0x0c, 0x20, 0x14, 0x40, 0xb0, 0xb4, 0xb8, 0xf0, 0xa8, 0x8a, 0x9a, 0x28, 0x50, 0x78, 0xb7, 0x9b,
+ 409              0xa8, 0x29, 0x51, 0x79, 0x24, 0x70, 0x59, 0x44, 0x69, 0x38, 0x64, 0x48, 0x31, 0xf1, 0xbb, 0xab,
+ 410              0x88, 0x00, 0x2c, 0x54, 0x7c, 0xf0, 0xb3, 0x8b, 0xb8, 0xa8, 0x04, 0x28, 0x50, 0x78, 0xf1, 0xb0,
+ 411              0x88, 0xb4, 0x97, 0x26, 0xa8, 0x59, 0x98, 0xbb, 0xab, 0xb3, 0x8b, 0x02, 0x26, 0x46, 0x66, 0xb0,
+C51 COMPILER V9.00   INV_MPU_DMP_MOTION_DRIVER                                             07/25/2015 16:10:17 PAGE 8   
+
+ 412              0xb8, 0xf0, 0x8a, 0x9c, 0xa8, 0x29, 0x51, 0x79, 0x8b, 0x29, 0x51, 0x79, 0x8a, 0x24, 0x70, 0x59,
+ 413              0x8b, 0x20, 0x58, 0x71, 0x8a, 0x44, 0x69, 0x38, 0x8b, 0x39, 0x40, 0x68, 0x8a, 0x64, 0x48, 0x31,
+ 414              0x8b, 0x30, 0x49, 0x60, 0x88, 0xf1, 0xac, 0x00, 0x2c, 0x54, 0x7c, 0xf0, 0x8c, 0xa8, 0x04, 0x28,
+ 415              0x50, 0x78, 0xf1, 0x88, 0x97, 0x26, 0xa8, 0x59, 0x98, 0xac, 0x8c, 0x02, 0x26, 0x46, 0x66, 0xf0,
+ 416              0x89, 0x9c, 0xa8, 0x29, 0x51, 0x79, 0x24, 0x70, 0x59, 0x44, 0x69, 0x38, 0x64, 0x48, 0x31, 0xa9,
+ 417              0x88, 0x09, 0x20, 0x59, 0x70, 0xab, 0x11, 0x38, 0x40, 0x69, 0xa8, 0x19, 0x31, 0x48, 0x60, 0x8c,
+ 418              0xa8, 0x3c, 0x41, 0x5c, 0x20, 0x7c, 0x00, 0xf1, 0x87, 0x98, 0x19, 0x86, 0xa8, 0x6e, 0x76, 0x7e,
+ 419              0xa9, 0x99, 0x88, 0x2d, 0x55, 0x7d, 0xd8, 0xb1, 0xb5, 0xb9, 0xa3, 0xdf, 0xdf, 0xdf, 0xae, 0xd0,
+ 420              0xdf, 0xaa, 0xd0, 0xde, 0xf2, 0xab, 0xf8, 0xf9, 0xd9, 0xb0, 0x87, 0xc4, 0xaa, 0xf1, 0xdf, 0xdf,
+ 421              0xbb, 0xaf, 0xdf, 0xdf, 0xb9, 0xd8, 0xb1, 0xf1, 0xa3, 0x97, 0x8e, 0x60, 0xdf, 0xb0, 0x84, 0xf2,
+ 422              0xc8, 0xf8, 0xf9, 0xd9, 0xde, 0xd8, 0x93, 0x85, 0xf1, 0x4a, 0xb1, 0x83, 0xa3, 0x08, 0xb5, 0x83,
+ 423              /* bank # 10 */
+ 424              0x9a, 0x08, 0x10, 0xb7, 0x9f, 0x10, 0xd8, 0xf1, 0xb0, 0xba, 0xae, 0xb0, 0x8a, 0xc2, 0xb2, 0xb6,
+ 425              0x8e, 0x9e, 0xf1, 0xfb, 0xd9, 0xf4, 0x1d, 0xd8, 0xf9, 0xd9, 0x0c, 0xf1, 0xd8, 0xf8, 0xf8, 0xad,
+ 426              0x61, 0xd9, 0xae, 0xfb, 0xd8, 0xf4, 0x0c, 0xf1, 0xd8, 0xf8, 0xf8, 0xad, 0x19, 0xd9, 0xae, 0xfb,
+ 427              0xdf, 0xd8, 0xf4, 0x16, 0xf1, 0xd8, 0xf8, 0xad, 0x8d, 0x61, 0xd9, 0xf4, 0xf4, 0xac, 0xf5, 0x9c,
+ 428              0x9c, 0x8d, 0xdf, 0x2b, 0xba, 0xb6, 0xae, 0xfa, 0xf8, 0xf4, 0x0b, 0xd8, 0xf1, 0xae, 0xd0, 0xf8,
+ 429              0xad, 0x51, 0xda, 0xae, 0xfa, 0xf8, 0xf1, 0xd8, 0xb9, 0xb1, 0xb6, 0xa3, 0x83, 0x9c, 0x08, 0xb9,
+ 430              0xb1, 0x83, 0x9a, 0xb5, 0xaa, 0xc0, 0xfd, 0x30, 0x83, 0xb7, 0x9f, 0x10, 0xb5, 0x8b, 0x93, 0xf2,
+ 431              0x02, 0x02, 0xd1, 0xab, 0xda, 0xde, 0xd8, 0xf1, 0xb0, 0x80, 0xba, 0xab, 0xc0, 0xc3, 0xb2, 0x84,
+ 432              0xc1, 0xc3, 0xd8, 0xb1, 0xb9, 0xf3, 0x8b, 0xa3, 0x91, 0xb6, 0x09, 0xb4, 0xd9, 0xab, 0xde, 0xb0,
+ 433              0x87, 0x9c, 0xb9, 0xa3, 0xdd, 0xf1, 0xb3, 0x8b, 0x8b, 0x8b, 0x8b, 0x8b, 0xb0, 0x87, 0xa3, 0xa3,
+ 434              0xa3, 0xa3, 0xb2, 0x8b, 0xb6, 0x9b, 0xf2, 0xa3, 0xa3, 0xa3, 0xa3, 0xa3, 0xa3, 0xa3, 0xa3, 0xa3,
+ 435              0xa3, 0xf1, 0xb0, 0x87, 0xb5, 0x9a, 0xa3, 0xf3, 0x9b, 0xa3, 0xa3, 0xdc, 0xba, 0xac, 0xdf, 0xb9,
+ 436              0xa3, 0xa3, 0xa3, 0xa3, 0xa3, 0xa3, 0xa3, 0xa3, 0xa3, 0xa3, 0xa3, 0xa3, 0xa3, 0xa3, 0xa3, 0xa3,
+ 437              0xd8, 0xd8, 0xd8, 0xbb, 0xb3, 0xb7, 0xf1, 0xaa, 0xf9, 0xda, 0xff, 0xd9, 0x80, 0x9a, 0xaa, 0x28,
+ 438              0xb4, 0x80, 0x98, 0xa7, 0x20, 0xb7, 0x97, 0x87, 0xa8, 0x66, 0x88, 0xf0, 0x79, 0x51, 0xf1, 0x90,
+ 439              0x2c, 0x87, 0x0c, 0xa7, 0x81, 0x97, 0x62, 0x93, 0xf0, 0x71, 0x71, 0x60, 0x85, 0x94, 0x01, 0x29,
+ 440              /* bank # 11 */
+ 441              0x51, 0x79, 0x90, 0xa5, 0xf1, 0x28, 0x4c, 0x6c, 0x87, 0x0c, 0x95, 0x18, 0x85, 0x78, 0xa3, 0x83,
+ 442              0x90, 0x28, 0x4c, 0x6c, 0x88, 0x6c, 0xd8, 0xf3, 0xa2, 0x82, 0x00, 0xf2, 0x10, 0xa8, 0x92, 0x19,
+ 443              0x80, 0xa2, 0xf2, 0xd9, 0x26, 0xd8, 0xf1, 0x88, 0xa8, 0x4d, 0xd9, 0x48, 0xd8, 0x96, 0xa8, 0x39,
+ 444              0x80, 0xd9, 0x3c, 0xd8, 0x95, 0x80, 0xa8, 0x39, 0xa6, 0x86, 0x98, 0xd9, 0x2c, 0xda, 0x87, 0xa7,
+ 445              0x2c, 0xd8, 0xa8, 0x89, 0x95, 0x19, 0xa9, 0x80, 0xd9, 0x38, 0xd8, 0xa8, 0x89, 0x39, 0xa9, 0x80,
+ 446              0xda, 0x3c, 0xd8, 0xa8, 0x2e, 0xa8, 0x39, 0x90, 0xd9, 0x0c, 0xd8, 0xa8, 0x95, 0x31, 0x98, 0xd9,
+ 447              0x0c, 0xd8, 0xa8, 0x09, 0xd9, 0xff, 0xd8, 0x01, 0xda, 0xff, 0xd8, 0x95, 0x39, 0xa9, 0xda, 0x26,
+ 448              0xff, 0xd8, 0x90, 0xa8, 0x0d, 0x89, 0x99, 0xa8, 0x10, 0x80, 0x98, 0x21, 0xda, 0x2e, 0xd8, 0x89,
+ 449              0x99, 0xa8, 0x31, 0x80, 0xda, 0x2e, 0xd8, 0xa8, 0x86, 0x96, 0x31, 0x80, 0xda, 0x2e, 0xd8, 0xa8,
+ 450              0x87, 0x31, 0x80, 0xda, 0x2e, 0xd8, 0xa8, 0x82, 0x92, 0xf3, 0x41, 0x80, 0xf1, 0xd9, 0x2e, 0xd8,
+ 451              0xa8, 0x82, 0xf3, 0x19, 0x80, 0xf1, 0xd9, 0x2e, 0xd8, 0x82, 0xac, 0xf3, 0xc0, 0xa2, 0x80, 0x22,
+ 452              0xf1, 0xa6, 0x2e, 0xa7, 0x2e, 0xa9, 0x22, 0x98, 0xa8, 0x29, 0xda, 0xac, 0xde, 0xff, 0xd8, 0xa2,
+ 453              0xf2, 0x2a, 0xf1, 0xa9, 0x2e, 0x82, 0x92, 0xa8, 0xf2, 0x31, 0x80, 0xa6, 0x96, 0xf1, 0xd9, 0x00,
+ 454              0xac, 0x8c, 0x9c, 0x0c, 0x30, 0xac, 0xde, 0xd0, 0xde, 0xff, 0xd8, 0x8c, 0x9c, 0xac, 0xd0, 0x10,
+ 455              0xac, 0xde, 0x80, 0x92, 0xa2, 0xf2, 0x4c, 0x82, 0xa8, 0xf1, 0xca, 0xf2, 0x35, 0xf1, 0x96, 0x88,
+ 456              0xa6, 0xd9, 0x00, 0xd8, 0xf1, 0xff
+ 457          };
+ 458          
+ 459          static const unsigned short sStartAddress = 0x0400;
+ 460          
+ 461          /* END OF SECTION COPIED FROM dmpDefaultMPU6050.c */
+ 462          
+ 463          #define INT_SRC_TAP             (0x01)
+ 464          #define INT_SRC_ANDROID_ORIENT  (0x08)
+ 465          
+ 466          #define DMP_FEATURE_SEND_ANY_GYRO   (DMP_FEATURE_SEND_RAW_GYRO | \
+ 467                                               DMP_FEATURE_SEND_CAL_GYRO)
+ 468          
+ 469          #define MAX_PACKET_LENGTH   (32)
+ 470          
+ 471          #define DMP_SAMPLE_RATE     (200)
+ 472          #define GYRO_SF             (46850825LL * 200 / DMP_SAMPLE_RATE)
+ 473          
+C51 COMPILER V9.00   INV_MPU_DMP_MOTION_DRIVER                                             07/25/2015 16:10:17 PAGE 9   
+
+ 474          #define FIFO_CORRUPTION_CHECK
+ 475          #ifdef FIFO_CORRUPTION_CHECK
+ 476          #define QUAT_ERROR_THRESH       (1L<<24)
+ 477          #define QUAT_MAG_SQ_NORMALIZED  (1L<<28)
+ 478          #define QUAT_MAG_SQ_MIN         (QUAT_MAG_SQ_NORMALIZED - QUAT_ERROR_THRESH)
+ 479          #define QUAT_MAG_SQ_MAX         (QUAT_MAG_SQ_NORMALIZED + QUAT_ERROR_THRESH)
+ 480          #endif
+ 481          
+ 482          struct dmp_s {
+ 483              void (*tap_cb)(unsigned char count, unsigned char direction);
+ 484              void (*android_orient_cb)(unsigned char orientation);
+ 485              unsigned short orient;
+ 486              unsigned short feature_mask;
+ 487              unsigned short fifo_rate;
+ 488              unsigned char packet_length;
+ 489          };
+ 490          
+ 491          //static struct dmp_s dmp = {
+ 492          //    .tap_cb = NULL,
+ 493          //    .android_orient_cb = NULL,
+ 494          //    .orient = 0,
+ 495          //    .feature_mask = 0,
+ 496          //    .fifo_rate = 0,
+ 497          //    .packet_length = 0
+ 498          //};
+ 499          static struct dmp_s dmp={
+ 500            NULL,
+ 501            NULL,
+ 502            0,
+ 503            0,
+ 504            0,
+ 505            0
+ 506          };
+ 507          /**
+ 508           *  @brief  Load the DMP with this image.
+ 509           *  @return 0 if successful.
+ 510           */
+ 511          int dmp_load_motion_driver_firmware(void)
+ 512          {
+ 513   1          return mpu_load_firmware(DMP_CODE_SIZE, dmp_memory, sStartAddress,
+ 514   1              DMP_SAMPLE_RATE);
+ 515   1      }
+ 516          
+ 517          /**
+ 518           *  @brief      Push gyro and accel orientation to the DMP.
+ 519           *  The orientation is represented here as the output of
+ 520           *  @e inv_orientation_matrix_to_scalar.
+ 521           *  @param[in]  orient  Gyro and accel orientation in body frame.
+ 522           *  @return     0 if successful.
+ 523           */
+ 524          int dmp_set_orientation(unsigned short orient)
+ 525          {
+ 526   1          unsigned char gyro_regs[3], accel_regs[3];
+ 527   1          const unsigned char gyro_axes[3] = {DINA4C, DINACD, DINA6C};
+ 528   1          const unsigned char accel_axes[3] = {DINA0C, DINAC9, DINA2C};
+ 529   1          const unsigned char gyro_sign[3] = {DINA36, DINA56, DINA76};
+ 530   1          const unsigned char accel_sign[3] = {DINA26, DINA46, DINA66};
+ 531   1      
+ 532   1          gyro_regs[0] = gyro_axes[orient & 3];
+ 533   1          gyro_regs[1] = gyro_axes[(orient >> 3) & 3];
+ 534   1          gyro_regs[2] = gyro_axes[(orient >> 6) & 3];
+ 535   1          accel_regs[0] = accel_axes[orient & 3];
+C51 COMPILER V9.00   INV_MPU_DMP_MOTION_DRIVER                                             07/25/2015 16:10:17 PAGE 10  
+
+ 536   1          accel_regs[1] = accel_axes[(orient >> 3) & 3];
+ 537   1          accel_regs[2] = accel_axes[(orient >> 6) & 3];
+ 538   1      
+ 539   1          /* Chip-to-body, axes only. */
+ 540   1          if (mpu_write_mem(FCFG_1, 3, gyro_regs))
+*** ERROR C208 IN LINE 540 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_write_mem': too many actual parameters
+ 541   1              return -1;
+ 542   1          if (mpu_write_mem(FCFG_2, 3, accel_regs))
+*** ERROR C208 IN LINE 542 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_write_mem': too many actual parameters
+ 543   1              return -1;
+ 544   1      
+ 545   1          memcpy(gyro_regs, gyro_sign, 3);
+ 546   1          memcpy(accel_regs, accel_sign, 3);
+ 547   1          if (orient & 4) {
+ 548   2              gyro_regs[0] |= 1;
+ 549   2              accel_regs[0] |= 1;
+ 550   2          }
+ 551   1          if (orient & 0x20) {
+ 552   2              gyro_regs[1] |= 1;
+ 553   2              accel_regs[1] |= 1;
+ 554   2          }
+ 555   1          if (orient & 0x100) {
+ 556   2              gyro_regs[2] |= 1;
+ 557   2              accel_regs[2] |= 1;
+ 558   2          }
+ 559   1      
+ 560   1          /* Chip-to-body, sign only. */
+ 561   1          if (mpu_write_mem(FCFG_3, 3, gyro_regs))
+*** ERROR C208 IN LINE 561 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_write_mem': too many actual parameters
+ 562   1              return -1;
+ 563   1          if (mpu_write_mem(FCFG_7, 3, accel_regs))
+*** ERROR C208 IN LINE 563 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_write_mem': too many actual parameters
+ 564   1              return -1;
+ 565   1          dmp.orient = orient;
+ 566   1          return 0;
+ 567   1      }
+ 568          
+ 569          /**
+ 570           *  @brief      Push gyro biases to the DMP.
+ 571           *  Because the gyro integration is handled in the DMP, any gyro biases
+ 572           *  calculated by the MPL should be pushed down to DMP memory to remove
+ 573           *  3-axis quaternion drift.
+ 574           *  \n NOTE: If the DMP-based gyro calibration is enabled, the DMP will
+ 575           *  overwrite the biases written to this location once a new one is computed.
+ 576           *  @param[in]  bias    Gyro biases in q16.
+ 577           *  @return     0 if successful.
+ 578           */
+ 579          int dmp_set_gyro_bias(long *bias)
+ 580          {
+ 581   1          long gyro_bias_body[3];
+ 582   1          unsigned char regs[4];
+ 583   1      
+ 584   1          gyro_bias_body[0] = bias[dmp.orient & 3];
+ 585   1          if (dmp.orient & 4)
+ 586   1              gyro_bias_body[0] *= -1;
+ 587   1          gyro_bias_body[1] = bias[(dmp.orient >> 3) & 3];
+ 588   1          if (dmp.orient & 0x20)
+ 589   1              gyro_bias_body[1] *= -1;
+ 590   1          gyro_bias_body[2] = bias[(dmp.orient >> 6) & 3];
+ 591   1          if (dmp.orient & 0x100)
+ 592   1              gyro_bias_body[2] *= -1;
+ 593   1      
+C51 COMPILER V9.00   INV_MPU_DMP_MOTION_DRIVER                                             07/25/2015 16:10:17 PAGE 11  
+
+ 594   1      #ifdef EMPL_NO_64BIT
+                  gyro_bias_body[0] = (long)(((float)gyro_bias_body[0] * GYRO_SF) / 1073741824.f);
+                  gyro_bias_body[1] = (long)(((float)gyro_bias_body[1] * GYRO_SF) / 1073741824.f);
+                  gyro_bias_body[2] = (long)(((float)gyro_bias_body[2] * GYRO_SF) / 1073741824.f);
+              #else
+ 599   1          gyro_bias_body[0] = (long)(((long long)gyro_bias_body[0] * GYRO_SF) >> 30);
+*** ERROR C141 IN LINE 599 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near 'long', expected ')'
+*** ERROR C141 IN LINE 599 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near 'L'
+*** ERROR C202 IN LINE 599 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: 'L': undefined identifier
+*** ERROR C141 IN LINE 599 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near ')'
+*** ERROR C141 IN LINE 599 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near ')'
+ 600   1          gyro_bias_body[1] = (long)(((long long)gyro_bias_body[1] * GYRO_SF) >> 30);
+*** ERROR C141 IN LINE 600 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near 'long', expected ')'
+*** ERROR C141 IN LINE 600 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near 'L'
+*** ERROR C141 IN LINE 600 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near ')'
+*** ERROR C141 IN LINE 600 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near ')'
+ 601   1          gyro_bias_body[2] = (long)(((long long)gyro_bias_body[2] * GYRO_SF) >> 30);
+*** ERROR C141 IN LINE 601 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near 'long', expected ')'
+*** ERROR C141 IN LINE 601 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near 'L'
+*** ERROR C141 IN LINE 601 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near ')'
+*** ERROR C141 IN LINE 601 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near ')'
+ 602   1      #endif
+ 603   1      
+ 604   1          regs[0] = (unsigned char)((gyro_bias_body[0] >> 24) & 0xFF);
+ 605   1          regs[1] = (unsigned char)((gyro_bias_body[0] >> 16) & 0xFF);
+ 606   1          regs[2] = (unsigned char)((gyro_bias_body[0] >> 8) & 0xFF);
+ 607   1          regs[3] = (unsigned char)(gyro_bias_body[0] & 0xFF);
+ 608   1          if (mpu_write_mem(D_EXT_GYRO_BIAS_X, 4, regs))
+*** ERROR C208 IN LINE 608 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_write_mem': too many actual parameters
+ 609   1              return -1;
+ 610   1      
+ 611   1          regs[0] = (unsigned char)((gyro_bias_body[1] >> 24) & 0xFF);
+ 612   1          regs[1] = (unsigned char)((gyro_bias_body[1] >> 16) & 0xFF);
+ 613   1          regs[2] = (unsigned char)((gyro_bias_body[1] >> 8) & 0xFF);
+ 614   1          regs[3] = (unsigned char)(gyro_bias_body[1] & 0xFF);
+ 615   1          if (mpu_write_mem(D_EXT_GYRO_BIAS_Y, 4, regs))
+*** ERROR C208 IN LINE 615 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_write_mem': too many actual parameters
+ 616   1              return -1;
+ 617   1      
+ 618   1          regs[0] = (unsigned char)((gyro_bias_body[2] >> 24) & 0xFF);
+ 619   1          regs[1] = (unsigned char)((gyro_bias_body[2] >> 16) & 0xFF);
+ 620   1          regs[2] = (unsigned char)((gyro_bias_body[2] >> 8) & 0xFF);
+ 621   1          regs[3] = (unsigned char)(gyro_bias_body[2] & 0xFF);
+ 622   1          return mpu_write_mem(D_EXT_GYRO_BIAS_Z, 4, regs);
+*** ERROR C208 IN LINE 622 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_write_mem': too many actual parameters
+ 623   1      }
+ 624          
+ 625          /**
+ 626           *  @brief      Push accel biases to the DMP.
+ 627           *  These biases will be removed from the DMP 6-axis quaternion.
+ 628           *  @param[in]  bias    Accel biases in q16.
+ 629           *  @return     0 if successful.
+ 630           */
+ 631          int dmp_set_accel_bias(long *bias)
+ 632          {
+ 633   1          long accel_bias_body[3];
+ 634   1          unsigned char regs[12];
+ 635   1          long long accel_sf;
+*** ERROR C141 IN LINE 635 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near 'long'
+ 636   1          unsigned short accel_sens;
+ 637   1      
+ 638   1          mpu_get_accel_sens(&accel_sens);
+C51 COMPILER V9.00   INV_MPU_DMP_MOTION_DRIVER                                             07/25/2015 16:10:17 PAGE 12  
+
+ 639   1          accel_sf = (long long)accel_sens << 15;
+*** ERROR C141 IN LINE 639 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near 'long', expected ')'
+ 640   1          //__no_operation();
+ 641   1      
+ 642   1          accel_bias_body[0] = bias[dmp.orient & 3];
+ 643   1          if (dmp.orient & 4)
+ 644   1              accel_bias_body[0] *= -1;
+ 645   1          accel_bias_body[1] = bias[(dmp.orient >> 3) & 3];
+ 646   1          if (dmp.orient & 0x20)
+ 647   1              accel_bias_body[1] *= -1;
+ 648   1          accel_bias_body[2] = bias[(dmp.orient >> 6) & 3];
+ 649   1          if (dmp.orient & 0x100)
+ 650   1              accel_bias_body[2] *= -1;
+ 651   1      
+ 652   1      #ifdef EMPL_NO_64BIT
+                  accel_bias_body[0] = (long)(((float)accel_bias_body[0] * accel_sf) / 1073741824.f);
+                  accel_bias_body[1] = (long)(((float)accel_bias_body[1] * accel_sf) / 1073741824.f);
+                  accel_bias_body[2] = (long)(((float)accel_bias_body[2] * accel_sf) / 1073741824.f);
+              #else
+ 657   1          accel_bias_body[0] = (long)(((long long)accel_bias_body[0] * accel_sf) >> 30);
+*** ERROR C141 IN LINE 657 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near 'long', expected ')'
+ 658   1          accel_bias_body[1] = (long)(((long long)accel_bias_body[1] * accel_sf) >> 30);
+*** ERROR C141 IN LINE 658 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near 'long', expected ')'
+ 659   1          accel_bias_body[2] = (long)(((long long)accel_bias_body[2] * accel_sf) >> 30);
+*** ERROR C141 IN LINE 659 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near 'long', expected ')'
+ 660   1      #endif
+ 661   1      
+ 662   1          regs[0] = (unsigned char)((accel_bias_body[0] >> 24) & 0xFF);
+ 663   1          regs[1] = (unsigned char)((accel_bias_body[0] >> 16) & 0xFF);
+ 664   1          regs[2] = (unsigned char)((accel_bias_body[0] >> 8) & 0xFF);
+ 665   1          regs[3] = (unsigned char)(accel_bias_body[0] & 0xFF);
+ 666   1          regs[4] = (unsigned char)((accel_bias_body[1] >> 24) & 0xFF);
+ 667   1          regs[5] = (unsigned char)((accel_bias_body[1] >> 16) & 0xFF);
+ 668   1          regs[6] = (unsigned char)((accel_bias_body[1] >> 8) & 0xFF);
+ 669   1          regs[7] = (unsigned char)(accel_bias_body[1] & 0xFF);
+ 670   1          regs[8] = (unsigned char)((accel_bias_body[2] >> 24) & 0xFF);
+ 671   1          regs[9] = (unsigned char)((accel_bias_body[2] >> 16) & 0xFF);
+ 672   1          regs[10] = (unsigned char)((accel_bias_body[2] >> 8) & 0xFF);
+ 673   1          regs[11] = (unsigned char)(accel_bias_body[2] & 0xFF);
+ 674   1          return mpu_write_mem(D_ACCEL_BIAS, 12, regs);
+*** ERROR C208 IN LINE 674 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_write_mem': too many actual parameters
+ 675   1      }
+ 676          
+ 677          /**
+ 678           *  @brief      Set DMP output rate.
+ 679           *  Only used when DMP is on.
+ 680           *  @param[in]  rate    Desired fifo rate (Hz).
+ 681           *  @return     0 if successful.
+ 682           */
+ 683          int dmp_set_fifo_rate(unsigned short rate)
+ 684          {
+ 685   1          const unsigned char regs_end[12] = {DINAFE, DINAF2, DINAAB,
+ 686   1              0xc4, DINAAA, DINAF1, DINADF, DINADF, 0xBB, 0xAF, DINADF, DINADF};
+ 687   1          unsigned short div;
+ 688   1          unsigned char tmp[8];
+ 689   1      
+ 690   1          if (rate > DMP_SAMPLE_RATE)
+ 691   1              return -1;
+ 692   1          div = DMP_SAMPLE_RATE / rate - 1;
+ 693   1          tmp[0] = (unsigned char)((div >> 8) & 0xFF);
+ 694   1          tmp[1] = (unsigned char)(div & 0xFF);
+ 695   1          if (mpu_write_mem(D_0_22, 2, tmp))
+C51 COMPILER V9.00   INV_MPU_DMP_MOTION_DRIVER                                             07/25/2015 16:10:17 PAGE 13  
+
+*** ERROR C208 IN LINE 695 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_write_mem': too many actual parameters
+ 696   1              return -1;
+ 697   1          if (mpu_write_mem(CFG_6, 12, (unsigned char*)regs_end))
+*** ERROR C208 IN LINE 697 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_write_mem': too many actual parameters
+ 698   1              return -1;
+ 699   1      
+ 700   1          dmp.fifo_rate = rate;
+ 701   1          return 0;
+ 702   1      }
+ 703          
+ 704          /**
+ 705           *  @brief      Get DMP output rate.
+ 706           *  @param[out] rate    Current fifo rate (Hz).
+ 707           *  @return     0 if successful.
+ 708           */
+ 709          int dmp_get_fifo_rate(unsigned short *rate)
+ 710          {
+ 711   1          rate[0] = dmp.fifo_rate;
+ 712   1          return 0;
+ 713   1      }
+ 714          
+ 715          /**
+ 716           *  @brief      Set tap threshold for a specific axis.
+ 717           *  @param[in]  axis    1, 2, and 4 for XYZ accel, respectively.
+ 718           *  @param[in]  thresh  Tap threshold, in mg/ms.
+ 719           *  @return     0 if successful.
+ 720           */
+ 721          int dmp_set_tap_thresh(unsigned char axis, unsigned short thresh)
+ 722          {
+ 723   1          unsigned char tmp[4], accel_fsr;
+ 724   1          float scaled_thresh;
+ 725   1          unsigned short dmp_thresh, dmp_thresh_2;
+ 726   1          if (!(axis & TAP_XYZ) || thresh > 1600)
+ 727   1              return -1;
+ 728   1      
+ 729   1          scaled_thresh = (float)thresh / DMP_SAMPLE_RATE;
+ 730   1      
+ 731   1          mpu_get_accel_fsr(&accel_fsr);
+ 732   1          switch (accel_fsr) {
+ 733   2          case 2:
+ 734   2              dmp_thresh = (unsigned short)(scaled_thresh * 16384);
+ 735   2              /* dmp_thresh * 0.75 */
+ 736   2              dmp_thresh_2 = (unsigned short)(scaled_thresh * 12288);
+ 737   2              break;
+ 738   2          case 4:
+ 739   2              dmp_thresh = (unsigned short)(scaled_thresh * 8192);
+ 740   2              /* dmp_thresh * 0.75 */
+ 741   2              dmp_thresh_2 = (unsigned short)(scaled_thresh * 6144);
+ 742   2              break;
+ 743   2          case 8:
+ 744   2              dmp_thresh = (unsigned short)(scaled_thresh * 4096);
+ 745   2              /* dmp_thresh * 0.75 */
+ 746   2              dmp_thresh_2 = (unsigned short)(scaled_thresh * 3072);
+ 747   2              break;
+ 748   2          case 16:
+ 749   2              dmp_thresh = (unsigned short)(scaled_thresh * 2048);
+ 750   2              /* dmp_thresh * 0.75 */
+ 751   2              dmp_thresh_2 = (unsigned short)(scaled_thresh * 1536);
+ 752   2              break;
+ 753   2          default:
+ 754   2              return -1;
+ 755   2          }
+C51 COMPILER V9.00   INV_MPU_DMP_MOTION_DRIVER                                             07/25/2015 16:10:17 PAGE 14  
+
+ 756   1          tmp[0] = (unsigned char)(dmp_thresh >> 8);
+ 757   1          tmp[1] = (unsigned char)(dmp_thresh & 0xFF);
+ 758   1          tmp[2] = (unsigned char)(dmp_thresh_2 >> 8);
+ 759   1          tmp[3] = (unsigned char)(dmp_thresh_2 & 0xFF);
+ 760   1      
+ 761   1          if (axis & TAP_X) {
+ 762   2              if (mpu_write_mem(DMP_TAP_THX, 2, tmp))
+*** ERROR C208 IN LINE 762 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_write_mem': too many actual parameters
+ 763   2                  return -1;
+ 764   2              if (mpu_write_mem(D_1_36, 2, tmp+2))
+*** ERROR C208 IN LINE 764 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_write_mem': too many actual parameters
+ 765   2                  return -1;
+ 766   2          }
+ 767   1          if (axis & TAP_Y) {
+ 768   2              if (mpu_write_mem(DMP_TAP_THY, 2, tmp))
+*** ERROR C208 IN LINE 768 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_write_mem': too many actual parameters
+ 769   2                  return -1;
+ 770   2              if (mpu_write_mem(D_1_40, 2, tmp+2))
+*** ERROR C208 IN LINE 770 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_write_mem': too many actual parameters
+ 771   2                  return -1;
+ 772   2          }
+ 773   1          if (axis & TAP_Z) {
+ 774   2              if (mpu_write_mem(DMP_TAP_THZ, 2, tmp))
+*** ERROR C208 IN LINE 774 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_write_mem': too many actual parameters
+ 775   2                  return -1;
+ 776   2              if (mpu_write_mem(D_1_44, 2, tmp+2))
+*** ERROR C208 IN LINE 776 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_write_mem': too many actual parameters
+ 777   2                  return -1;
+ 778   2          }
+ 779   1          return 0;
+ 780   1      }
+ 781          
+ 782          /**
+ 783           *  @brief      Set which axes will register a tap.
+ 784           *  @param[in]  axis    1, 2, and 4 for XYZ, respectively.
+ 785           *  @return     0 if successful.
+ 786           */
+ 787          int dmp_set_tap_axes(unsigned char axis)
+ 788          {
+ 789   1          unsigned char tmp = 0;
+ 790   1      
+ 791   1          if (axis & TAP_X)
+ 792   1              tmp |= 0x30;
+ 793   1          if (axis & TAP_Y)
+ 794   1              tmp |= 0x0C;
+ 795   1          if (axis & TAP_Z)
+ 796   1              tmp |= 0x03;
+ 797   1          return mpu_write_mem(D_1_72, 1, &tmp);
+*** ERROR C208 IN LINE 797 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_write_mem': too many actual parameters
+ 798   1      }
+ 799          
+ 800          /**
+ 801           *  @brief      Set minimum number of taps needed for an interrupt.
+ 802           *  @param[in]  min_taps    Minimum consecutive taps (1-4).
+ 803           *  @return     0 if successful.
+ 804           */
+ 805          int dmp_set_tap_count(unsigned char min_taps)
+ 806          {
+ 807   1          unsigned char tmp;
+ 808   1      
+ 809   1          if (min_taps < 1)
+ 810   1              min_taps = 1;
+C51 COMPILER V9.00   INV_MPU_DMP_MOTION_DRIVER                                             07/25/2015 16:10:17 PAGE 15  
+
+ 811   1          else if (min_taps > 4)
+ 812   1              min_taps = 4;
+ 813   1      
+ 814   1          tmp = min_taps - 1;
+ 815   1          return mpu_write_mem(D_1_79, 1, &tmp);
+*** ERROR C208 IN LINE 815 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_write_mem': too many actual parameters
+ 816   1      }
+ 817          
+ 818          /**
+ 819           *  @brief      Set length between valid taps.
+ 820           *  @param[in]  time    Milliseconds between taps.
+ 821           *  @return     0 if successful.
+ 822           */
+ 823          int dmp_set_tap_time(unsigned short time)
+ 824          {
+ 825   1          unsigned short dmp_time;
+ 826   1          unsigned char tmp[2];
+ 827   1      
+ 828   1          dmp_time = time / (1000 / DMP_SAMPLE_RATE);
+ 829   1          tmp[0] = (unsigned char)(dmp_time >> 8);
+ 830   1          tmp[1] = (unsigned char)(dmp_time & 0xFF);
+ 831   1          return mpu_write_mem(DMP_TAPW_MIN, 2, tmp);
+*** ERROR C208 IN LINE 831 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_write_mem': too many actual parameters
+ 832   1      }
+ 833          
+ 834          /**
+ 835           *  @brief      Set max time between taps to register as a multi-tap.
+ 836           *  @param[in]  time    Max milliseconds between taps.
+ 837           *  @return     0 if successful.
+ 838           */
+ 839          int dmp_set_tap_time_multi(unsigned short time)
+ 840          {
+ 841   1          unsigned short dmp_time;
+ 842   1          unsigned char tmp[2];
+ 843   1      
+ 844   1          dmp_time = time / (1000 / DMP_SAMPLE_RATE);
+ 845   1          tmp[0] = (unsigned char)(dmp_time >> 8);
+ 846   1          tmp[1] = (unsigned char)(dmp_time & 0xFF);
+ 847   1          return mpu_write_mem(D_1_218, 2, tmp);
+*** ERROR C208 IN LINE 847 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_write_mem': too many actual parameters
+ 848   1      }
+ 849          
+ 850          /**
+ 851           *  @brief      Set shake rejection threshold.
+ 852           *  If the DMP detects a gyro sample larger than @e thresh, taps are rejected.
+ 853           *  @param[in]  sf      Gyro scale factor.
+ 854           *  @param[in]  thresh  Gyro threshold in dps.
+ 855           *  @return     0 if successful.
+ 856           */
+ 857          int dmp_set_shake_reject_thresh(long sf, unsigned short thresh)
+ 858          {
+ 859   1          unsigned char tmp[4];
+ 860   1          long thresh_scaled = sf / 1000 * thresh;
+ 861   1          tmp[0] = (unsigned char)(((long)thresh_scaled >> 24) & 0xFF);
+ 862   1          tmp[1] = (unsigned char)(((long)thresh_scaled >> 16) & 0xFF);
+ 863   1          tmp[2] = (unsigned char)(((long)thresh_scaled >> 8) & 0xFF);
+ 864   1          tmp[3] = (unsigned char)((long)thresh_scaled & 0xFF);
+ 865   1          return mpu_write_mem(D_1_92, 4, tmp);
+*** ERROR C208 IN LINE 865 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_write_mem': too many actual parameters
+ 866   1      }
+ 867          
+ 868          /**
+C51 COMPILER V9.00   INV_MPU_DMP_MOTION_DRIVER                                             07/25/2015 16:10:17 PAGE 16  
+
+ 869           *  @brief      Set shake rejection time.
+ 870           *  Sets the length of time that the gyro must be outside of the threshold set
+ 871           *  by @e gyro_set_shake_reject_thresh before taps are rejected. A mandatory
+ 872           *  60 ms is added to this parameter.
+ 873           *  @param[in]  time    Time in milliseconds.
+ 874           *  @return     0 if successful.
+ 875           */
+ 876          int dmp_set_shake_reject_time(unsigned short time)
+ 877          {
+ 878   1          unsigned char tmp[2];
+ 879   1      
+ 880   1          time /= (1000 / DMP_SAMPLE_RATE);
+ 881   1          tmp[0] = time >> 8;
+ 882   1          tmp[1] = time & 0xFF;
+ 883   1          return mpu_write_mem(D_1_90,2,tmp);
+*** ERROR C208 IN LINE 883 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_write_mem': too many actual parameters
+ 884   1      }
+ 885          
+ 886          /**
+ 887           *  @brief      Set shake rejection timeout.
+ 888           *  Sets the length of time after a shake rejection that the gyro must stay
+ 889           *  inside of the threshold before taps can be detected again. A mandatory
+ 890           *  60 ms is added to this parameter.
+ 891           *  @param[in]  time    Time in milliseconds.
+ 892           *  @return     0 if successful.
+ 893           */
+ 894          int dmp_set_shake_reject_timeout(unsigned short time)
+ 895          {
+ 896   1          unsigned char tmp[2];
+ 897   1      
+ 898   1          time /= (1000 / DMP_SAMPLE_RATE);
+ 899   1          tmp[0] = time >> 8;
+ 900   1          tmp[1] = time & 0xFF;
+ 901   1          return mpu_write_mem(D_1_88,2,tmp);
+*** ERROR C208 IN LINE 901 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_write_mem': too many actual parameters
+ 902   1      }
+ 903          
+ 904          /**
+ 905           *  @brief      Get current step count.
+ 906           *  @param[out] count   Number of steps detected.
+ 907           *  @return     0 if successful.
+ 908           */
+ 909          int dmp_get_pedometer_step_count(unsigned long *count)
+ 910          {
+ 911   1          unsigned char tmp[4];
+ 912   1          if (!count)
+ 913   1              return -1;
+ 914   1      
+ 915   1          if (mpu_read_mem(D_PEDSTD_STEPCTR, 4, tmp))
+*** ERROR C208 IN LINE 915 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_read_mem': too many actual parameters
+ 916   1              return -1;
+ 917   1      
+ 918   1          count[0] = ((unsigned long)tmp[0] << 24) | ((unsigned long)tmp[1] << 16) |
+ 919   1              ((unsigned long)tmp[2] << 8) | tmp[3];
+ 920   1          return 0;
+ 921   1      }
+ 922          
+ 923          /**
+ 924           *  @brief      Overwrite current step count.
+ 925           *  WARNING: This function writes to DMP memory and could potentially encounter
+ 926           *  a race condition if called while the pedometer is enabled.
+ 927           *  @param[in]  count   New step count.
+C51 COMPILER V9.00   INV_MPU_DMP_MOTION_DRIVER                                             07/25/2015 16:10:17 PAGE 17  
+
+ 928           *  @return     0 if successful.
+ 929           */
+ 930          int dmp_set_pedometer_step_count(unsigned long count)
+ 931          {
+ 932   1          unsigned char tmp[4];
+ 933   1      
+ 934   1          tmp[0] = (unsigned char)((count >> 24) & 0xFF);
+ 935   1          tmp[1] = (unsigned char)((count >> 16) & 0xFF);
+ 936   1          tmp[2] = (unsigned char)((count >> 8) & 0xFF);
+ 937   1          tmp[3] = (unsigned char)(count & 0xFF);
+ 938   1          return mpu_write_mem(D_PEDSTD_STEPCTR, 4, tmp);
+*** ERROR C208 IN LINE 938 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_write_mem': too many actual parameters
+ 939   1      }
+ 940          
+ 941          /**
+ 942           *  @brief      Get duration of walking time.
+ 943           *  @param[in]  time    Walk time in milliseconds.
+ 944           *  @return     0 if successful.
+ 945           */
+ 946          int dmp_get_pedometer_walk_time(unsigned long *time)
+ 947          {
+ 948   1          unsigned char tmp[4];
+ 949   1          if (!time)
+ 950   1              return -1;
+ 951   1      
+ 952   1          if (mpu_read_mem(D_PEDSTD_TIMECTR, 4, tmp))
+*** ERROR C208 IN LINE 952 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_read_mem': too many actual parameters
+ 953   1              return -1;
+ 954   1      
+ 955   1          time[0] = (((unsigned long)tmp[0] << 24) | ((unsigned long)tmp[1] << 16) |
+ 956   1              ((unsigned long)tmp[2] << 8) | tmp[3]) * 20;
+ 957   1          return 0;
+ 958   1      }
+ 959          
+ 960          /**
+ 961           *  @brief      Overwrite current walk time.
+ 962           *  WARNING: This function writes to DMP memory and could potentially encounter
+ 963           *  a race condition if called while the pedometer is enabled.
+ 964           *  @param[in]  time    New walk time in milliseconds.
+ 965           */
+ 966          int dmp_set_pedometer_walk_time(unsigned long time)
+ 967          {
+ 968   1          unsigned char tmp[4];
+ 969   1      
+ 970   1          time /= 20;
+ 971   1      
+ 972   1          tmp[0] = (unsigned char)((time >> 24) & 0xFF);
+ 973   1          tmp[1] = (unsigned char)((time >> 16) & 0xFF);
+ 974   1          tmp[2] = (unsigned char)((time >> 8) & 0xFF);
+ 975   1          tmp[3] = (unsigned char)(time & 0xFF);
+ 976   1          return mpu_write_mem(D_PEDSTD_TIMECTR, 4, tmp);
+*** ERROR C208 IN LINE 976 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_write_mem': too many actual parameters
+ 977   1      }
+ 978          
+ 979          /**
+ 980           *  @brief      Enable DMP features.
+ 981           *  The following \#define's are used in the input mask:
+ 982           *  \n DMP_FEATURE_TAP
+ 983           *  \n DMP_FEATURE_ANDROID_ORIENT
+ 984           *  \n DMP_FEATURE_LP_QUAT
+ 985           *  \n DMP_FEATURE_6X_LP_QUAT
+ 986           *  \n DMP_FEATURE_GYRO_CAL
+C51 COMPILER V9.00   INV_MPU_DMP_MOTION_DRIVER                                             07/25/2015 16:10:17 PAGE 18  
+
+ 987           *  \n DMP_FEATURE_SEND_RAW_ACCEL
+ 988           *  \n DMP_FEATURE_SEND_RAW_GYRO
+ 989           *  \n NOTE: DMP_FEATURE_LP_QUAT and DMP_FEATURE_6X_LP_QUAT are mutually
+ 990           *  exclusive.
+ 991           *  \n NOTE: DMP_FEATURE_SEND_RAW_GYRO and DMP_FEATURE_SEND_CAL_GYRO are also
+ 992           *  mutually exclusive.
+ 993           *  @param[in]  mask    Mask of features to enable.
+ 994           *  @return     0 if successful.
+ 995           */
+ 996          int dmp_enable_feature(unsigned short mask)
+ 997          {
+ 998   1          unsigned char tmp[10];
+ 999   1      
+1000   1          /* TODO: All of these settings can probably be integrated into the default
+1001   1           * DMP image.
+1002   1           */
+1003   1          /* Set integration scale factor. */
+1004   1          tmp[0] = (unsigned char)((GYRO_SF >> 24) & 0xFF);
+*** ERROR C141 IN LINE 1004 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near 'L'
+*** ERROR C202 IN LINE 1004 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: 'L': undefined identifier
+*** ERROR C141 IN LINE 1004 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near ')'
+*** ERROR C141 IN LINE 1004 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near ')'
+*** ERROR C141 IN LINE 1004 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near ')'
+1005   1          tmp[1] = (unsigned char)((GYRO_SF >> 16) & 0xFF);
+*** ERROR C141 IN LINE 1005 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near 'L'
+*** ERROR C141 IN LINE 1005 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near ')'
+*** ERROR C141 IN LINE 1005 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near ')'
+*** ERROR C141 IN LINE 1005 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near ')'
+1006   1          tmp[2] = (unsigned char)((GYRO_SF >> 8) & 0xFF);
+*** ERROR C141 IN LINE 1006 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near 'L'
+*** ERROR C141 IN LINE 1006 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near ')'
+*** ERROR C141 IN LINE 1006 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near ')'
+*** ERROR C141 IN LINE 1006 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near ')'
+1007   1          tmp[3] = (unsigned char)(GYRO_SF & 0xFF);
+*** ERROR C141 IN LINE 1007 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near 'L'
+*** ERROR C141 IN LINE 1007 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near ')'
+*** ERROR C141 IN LINE 1007 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near ')'
+1008   1          mpu_write_mem(D_0_104, 4, tmp);
+1009   1      
+1010   1          /* Send sensor data to the FIFO. */
+1011   1          tmp[0] = 0xA3;
+1012   1          if (mask & DMP_FEATURE_SEND_RAW_ACCEL) {
+1013   2              tmp[1] = 0xC0;
+1014   2              tmp[2] = 0xC8;
+1015   2              tmp[3] = 0xC2;
+1016   2          } else {
+1017   2              tmp[1] = 0xA3;
+1018   2              tmp[2] = 0xA3;
+1019   2              tmp[3] = 0xA3;
+1020   2          }
+1021   1          if (mask & DMP_FEATURE_SEND_ANY_GYRO) {
+1022   2              tmp[4] = 0xC4;
+1023   2              tmp[5] = 0xCC;
+1024   2              tmp[6] = 0xC6;
+1025   2          } else {
+1026   2              tmp[4] = 0xA3;
+1027   2              tmp[5] = 0xA3;
+1028   2              tmp[6] = 0xA3;
+1029   2          }
+1030   1          tmp[7] = 0xA3;
+1031   1          tmp[8] = 0xA3;
+1032   1          tmp[9] = 0xA3;
+C51 COMPILER V9.00   INV_MPU_DMP_MOTION_DRIVER                                             07/25/2015 16:10:17 PAGE 19  
+
+1033   1          mpu_write_mem(CFG_15,10,tmp);
+*** ERROR C208 IN LINE 1033 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_write_mem': too many actual parameters
+1034   1      
+1035   1          /* Send gesture data to the FIFO. */
+1036   1          if (mask & (DMP_FEATURE_TAP | DMP_FEATURE_ANDROID_ORIENT))
+1037   1              tmp[0] = DINA20;
+1038   1          else
+1039   1              tmp[0] = 0xD8;
+1040   1          mpu_write_mem(CFG_27,1,tmp);
+*** ERROR C208 IN LINE 1040 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_write_mem': too many actual parameters
+1041   1      
+1042   1          if (mask & DMP_FEATURE_GYRO_CAL)
+1043   1              dmp_enable_gyro_cal(1);
+1044   1          else
+1045   1              dmp_enable_gyro_cal(0);
+1046   1      
+1047   1          if (mask & DMP_FEATURE_SEND_ANY_GYRO) {
+1048   2              if (mask & DMP_FEATURE_SEND_CAL_GYRO) {
+1049   3                  tmp[0] = 0xB2;
+1050   3                  tmp[1] = 0x8B;
+1051   3                  tmp[2] = 0xB6;
+1052   3                  tmp[3] = 0x9B;
+1053   3              } else {
+1054   3                  tmp[0] = DINAC0;
+1055   3                  tmp[1] = DINA80;
+1056   3                  tmp[2] = DINAC2;
+1057   3                  tmp[3] = DINA90;
+1058   3              }
+1059   2              mpu_write_mem(CFG_GYRO_RAW_DATA, 4, tmp);
+*** ERROR C208 IN LINE 1059 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_write_mem': too many actual parameters
+1060   2          }
+1061   1      
+1062   1          if (mask & DMP_FEATURE_TAP) {
+1063   2              /* Enable tap. */
+1064   2              tmp[0] = 0xF8;
+1065   2              mpu_write_mem(CFG_20, 1, tmp);
+*** ERROR C208 IN LINE 1065 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: '_mpu_write_mem': too many actual parameters
+1066   2              dmp_set_tap_thresh(TAP_XYZ, 250);
+1067   2              dmp_set_tap_axes(TAP_XYZ);
+1068   2              dmp_set_tap_count(1);
+1069   2              dmp_set_tap_time(100);
+1070   2              dmp_set_tap_time_multi(500);
+1071   2      
+1072   2              dmp_set_shake_reject_thresh(GYRO_SF, 200);
+*** ERROR C141 IN LINE 1072 OF ..\SRC\INV_MPU_DMP_MOTION_DRIVER.C: syntax error near 'L'
+1073   2              dmp_set_shake_reject_time(40);
+1074   2              dmp_set_shake_reject_timeout(10);
+1075   2          } else {
+1076   2              tmp[0] = 0xD8;
+1077   2              mpu_write_mem(CFG_20, 1, tmp);
+1078   2          }
+1079   1      
+1080   1          if (mask & DMP_FEATURE_ANDROID_ORIENT) {
+1081   2              tmp[0] = 0xD9;
+1082   2          } else
+1083   1              tmp[0] = 0xD8;
+1084   1          mpu_write_mem(CFG_ANDROID_ORIENT_INT, 1, tmp);
+1085   1      
+1086   1          if (mask & DMP_FEATURE_LP_QUAT)
+1087   1              dmp_enable_lp_quat(1);
+1088   1          else
+1089   1              dmp_enable_lp_quat(0);
+C51 COMPILER V9.00   INV_MPU_DMP_MOTION_DRIVER                                             07/25/2015 16:10:17 PAGE 20  
+
+1090   1      
+1091   1          if (mask & DMP_FEATURE_6X_LP_QUAT)
+1092   1              dmp_enable_6x_lp_quat(1);
+1093   1          else
+1094   1              dmp_enable_6x_lp_quat(0);
+1095   1      
+1096   1          /* Pedometer is always enabled. */
+1097   1          dmp.feature_mask = mask | DMP_FEATURE_PEDOMETER;
+1098   1          mpu_reset_fifo();
+1099   1      
+1100   1          dmp.packet_length = 0;
+1101   1          if (mask & DMP_FEATURE_SEND_RAW_ACCEL)
+1102   1              dmp.packet_length += 6;
+1103   1          if (mask & DMP_FEATURE_SEND_ANY_GYRO)
+1104   1              dmp.packet_length += 6;
+1105   1          if (mask & (DMP_FEATURE_LP_QUAT | DMP_FEATURE_6X_LP_QUAT))
+1106   1              dmp.packet_length += 16;
+1107   1          if (mask & (DMP_FEATURE_TAP | DMP_FEATURE_ANDROID_ORIENT))
+1108   1              dmp.packet_length += 4;
+1109   1      
+1110   1          return 0;
+1111   1      }
+1112          
+1113          /**
+1114           *  @brief      Get list of currently enabled DMP features.
+1115           *  @param[out] Mask of enabled features.
+1116           *  @return     0 if successful.
+1117           */
+1118          int dmp_get_enabled_features(unsigned short *mask)
+1119          {
+1120   1          mask[0] = dmp.feature_mask;
+1121   1          return 0;
+1122   1      }
+1123          
+1124          /**
+1125           *  @brief      Calibrate the gyro data in the DMP.
+1126           *  After eight seconds of no motion, the DMP will compute gyro biases and
+1127           *  subtract them from the quaternion output. If @e dmp_enable_feature is
+1128           *  called with @e DMP_FEATURE_SEND_CAL_GYRO, the biases will also be
+1129           *  subtracted from the gyro output.
+1130           *  @param[in]  enable  1 to enable gyro calibration.
+1131           *  @return     0 if successful.
+1132           */
+1133          int dmp_enable_gyro_cal(unsigned char enable)
+1134          {
+1135   1          if (enable) {
+1136   2              unsigned char regs[9] = {0xb8, 0xaa, 0xb3, 0x8d, 0xb4, 0x98, 0x0d, 0x35, 0x5d};
+1137   2              return mpu_write_mem(CFG_MOTION_BIAS, 9, regs);
+1138   2          } else {
+1139   2              unsigned char regs[9] = {0xb8, 0xaa, 0xaa, 0xaa, 0xb0, 0x88, 0xc3, 0xc5, 0xc7};
+1140   2              return mpu_write_mem(CFG_MOTION_BIAS, 9, regs);
+1141   2          }
+1142   1      }
+1143          
+1144          /**
+1145           *  @brief      Generate 3-axis quaternions from the DMP.
+1146           *  In this driver, the 3-axis and 6-axis DMP quaternion features are mutually
+1147           *  exclusive.
+1148           *  @param[in]  enable  1 to enable 3-axis quaternion.
+1149           *  @return     0 if successful.
+1150           */
+1151          int dmp_enable_lp_quat(unsigned char enable)
+C51 COMPILER V9.00   INV_MPU_DMP_MOTION_DRIVER                                             07/25/2015 16:10:17 PAGE 21  
+
+1152          {
+1153   1          unsigned char regs[4];
+1154   1          if (enable) {
+1155   2              regs[0] = DINBC0;
+1156   2              regs[1] = DINBC2;
+1157   2              regs[2] = DINBC4;
+1158   2              regs[3] = DINBC6;
+1159   2          }
+1160   1          else
+1161   1              memset(regs, 0x8B, 4);
+1162   1      
+1163   1          mpu_write_mem(CFG_LP_QUAT, 4, regs);
+1164   1      
+1165   1          return mpu_reset_fifo();
+1166   1      }
+1167          
+1168          /**
+1169           *  @brief       Generate 6-axis quaternions from the DMP.
+1170           *  In this driver, the 3-axis and 6-axis DMP quaternion features are mutually
+1171           *  exclusive.
+1172           *  @param[in]   enable  1 to enable 6-axis quaternion.
+1173           *  @return      0 if successful.
+1174           */
+1175          int dmp_enable_6x_lp_quat(unsigned char enable)
+1176          {
+1177   1          unsigned char regs[4];
+1178   1          if (enable) {
+1179   2              regs[0] = DINA20;
+1180   2              regs[1] = DINA28;
+1181   2              regs[2] = DINA30;
+1182   2              regs[3] = DINA38;
+1183   2          } else
+1184   1              memset(regs, 0xA3, 4);
+1185   1      
+1186   1          mpu_write_mem(CFG_8, 4, regs);
+1187   1      
+1188   1          return mpu_reset_fifo();
+1189   1      }
+1190          
+1191          /**
+1192           *  @brief      Decode the four-byte gesture data and execute any callbacks.
+1193           *  @param[in]  gesture Gesture data from DMP packet.
+1194           *  @return     0 if successful.
+1195           */
+1196          static int decode_gesture(unsigned char *gesture)
+1197          {
+1198   1          unsigned char tap, android_orient;
+1199   1      
+1200   1          android_orient = gesture[3] & 0xC0;
+1201   1          tap = 0x3F & gesture[3];
+1202   1      
+1203   1          if (gesture[1] & INT_SRC_TAP) {
+1204   2              unsigned char direction, count;
+1205   2              direction = tap >> 3;
+1206   2              count = (tap % 8) + 1;
+1207   2              if (dmp.tap_cb)
+1208   2                  dmp.tap_cb(direction, count);
+1209   2          }
+1210   1      
+1211   1          if (gesture[1] & INT_SRC_ANDROID_ORIENT) {
+1212   2              if (dmp.android_orient_cb)
+1213   2                  dmp.android_orient_cb(android_orient >> 6);
+C51 COMPILER V9.00   INV_MPU_DMP_MOTION_DRIVER                                             07/25/2015 16:10:17 PAGE 22  
+
+1214   2          }
+1215   1      
+1216   1          return 0;
+1217   1      }
+1218          
+1219          /**
+1220           *  @brief      Specify when a DMP interrupt should occur.
+1221           *  A DMP interrupt can be configured to trigger on either of the two
+1222           *  conditions below:
+1223           *  \n a. One FIFO period has elapsed (set by @e mpu_set_sample_rate).
+1224           *  \n b. A tap event has been detected.
+1225           *  @param[in]  mode    DMP_INT_GESTURE or DMP_INT_CONTINUOUS.
+1226           *  @return     0 if successful.
+1227           */
+1228          int dmp_set_interrupt_mode(unsigned char mode)
+1229          {
+1230   1          const unsigned char regs_continuous[11] =
+1231   1              {0xd8, 0xb1, 0xb9, 0xf3, 0x8b, 0xa3, 0x91, 0xb6, 0x09, 0xb4, 0xd9};
+1232   1          const unsigned char regs_gesture[11] =
+1233   1              {0xda, 0xb1, 0xb9, 0xf3, 0x8b, 0xa3, 0x91, 0xb6, 0xda, 0xb4, 0xda};
+1234   1      
+1235   1          switch (mode) {
+1236   2          case DMP_INT_CONTINUOUS:
+1237   2              return mpu_write_mem(CFG_FIFO_ON_EVENT, 11,
+1238   2                  (unsigned char*)regs_continuous);
+1239   2          case DMP_INT_GESTURE:
+1240   2              return mpu_write_mem(CFG_FIFO_ON_EVENT, 11,
+1241   2                  (unsigned char*)regs_gesture);
+1242   2          default:
+1243   2              return -1;
+1244   2          }
+1245   1      }
+1246          
+1247          /**
+1248           *  @brief      Get one packet from the FIFO.
+1249           *  If @e sensors does not contain a particular sensor, disregard the data
+1250           *  returned to that pointer.
+1251           *  \n @e sensors can contain a combination of the following flags:
+1252           *  \n INV_X_GYRO, INV_Y_GYRO, INV_Z_GYRO
+1253           *  \n INV_XYZ_GYRO
+1254           *  \n INV_XYZ_ACCEL
+1255           *  \n INV_WXYZ_QUAT
+1256           *  \n If the FIFO has no new data, @e sensors will be zero.
+1257           *  \n If the FIFO is disabled, @e sensors will be zero and this function will
+1258           *  return a non-zero error code.
+1259           *  @param[out] gyro        Gyro data in hardware units.
+1260           *  @param[out] accel       Accel data in hardware units.
+1261           *  @param[out] quat        3-axis quaternion data in hardware units.
+1262           *  @param[out] timestamp   Timestamp in milliseconds.
+1263           *  @param[out] sensors     Mask of sensors read from FIFO.
+1264           *  @param[out] more        Number of remaining packets.
+1265           *  @return     0 if successful.
+1266           */
+1267          int dmp_read_fifo(short *gyro, short *accel, long *quat,
+1268              unsigned long *timestamp, short *sensors, unsigned char *more)
+1269          {
+1270   1          unsigned char fifo_data[MAX_PACKET_LENGTH];
+1271   1          unsigned char ii = 0;
+1272   1      
+1273   1          /* TODO: sensors[0] only changes when dmp_enable_feature is called. We can
+1274   1           * cache this value and save some cycles.
+1275   1           */
+C51 COMPILER V9.00   INV_MPU_DMP_MOTION_DRIVER                                             07/25/2015 16:10:17 PAGE 23  
+
+1276   1          sensors[0] = 0;
+1277   1      
+1278   1          /* Get a packet. */
+1279   1          if (mpu_read_fifo_stream(dmp.packet_length, fifo_data, more))
+1280   1              return -1;
+1281   1      
+1282   1          /* Parse DMP packet. */
+1283   1          if (dmp.feature_mask & (DMP_FEATURE_LP_QUAT | DMP_FEATURE_6X_LP_QUAT)) {
+1284   2      #ifdef FIFO_CORRUPTION_CHECK
+1285   2              long quat_q14[4], quat_mag_sq;
+1286   2      #endif
+1287   2              quat[0] = ((long)fifo_data[0] << 24) | ((long)fifo_data[1] << 16) |
+1288   2                  ((long)fifo_data[2] << 8) | fifo_data[3];
+1289   2              quat[1] = ((long)fifo_data[4] << 24) | ((long)fifo_data[5] << 16) |
+1290   2                  ((long)fifo_data[6] << 8) | fifo_data[7];
+1291   2              quat[2] = ((long)fifo_data[8] << 24) | ((long)fifo_data[9] << 16) |
+1292   2                  ((long)fifo_data[10] << 8) | fifo_data[11];
+1293   2              quat[3] = ((long)fifo_data[12] << 24) | ((long)fifo_data[13] << 16) |
+1294   2                  ((long)fifo_data[14] << 8) | fifo_data[15];
+1295   2              ii += 16;
+1296   2      #ifdef FIFO_CORRUPTION_CHECK
+1297   2              /* We can detect a corrupted FIFO by monitoring the quaternion data and
+1298   2               * ensuring that the magnitude is always normalized to one. This
+1299   2               * shouldn't happen in normal operation, but if an I2C error occurs,
+1300   2               * the FIFO reads might become misaligned.
+1301   2               *
+1302   2               * Let's start by scaling down the quaternion data to avoid long long
+1303   2               * math.
+1304   2               */
+1305   2              quat_q14[0] = quat[0] >> 16;
+1306   2              quat_q14[1] = quat[1] >> 16;
+1307   2              quat_q14[2] = quat[2] >> 16;
+1308   2              quat_q14[3] = quat[3] >> 16;
+1309   2              quat_mag_sq = quat_q14[0] * quat_q14[0] + quat_q14[1] * quat_q14[1] +
+1310   2                  quat_q14[2] * quat_q14[2] + quat_q14[3] * quat_q14[3];
+1311   2              if ((quat_mag_sq < QUAT_MAG_SQ_MIN) ||
+1312   2                  (quat_mag_sq > QUAT_MAG_SQ_MAX)) {
+1313   3                  /* Quaternion is outside of the acceptable threshold. */
+1314   3                  mpu_reset_fifo();
+1315   3                  sensors[0] = 0;
+1316   3                  return -1;
+1317   3              }
+1318   2              sensors[0] |= INV_WXYZ_QUAT;
+1319   2      #endif
+1320   2          }
+1321   1      
+1322   1          if (dmp.feature_mask & DMP_FEATURE_SEND_RAW_ACCEL) {
+1323   2              accel[0] = ((short)fifo_data[ii+0] << 8) | fifo_data[ii+1];
+1324   2              accel[1] = ((short)fifo_data[ii+2] << 8) | fifo_data[ii+3];
+1325   2              accel[2] = ((short)fifo_data[ii+4] << 8) | fifo_data[ii+5];
+1326   2              ii += 6;
+1327   2              sensors[0] |= INV_XYZ_ACCEL;
+1328   2          }
+1329   1      
+1330   1          if (dmp.feature_mask & DMP_FEATURE_SEND_ANY_GYRO) {
+1331   2              gyro[0] = ((short)fifo_data[ii+0] << 8) | fifo_data[ii+1];
+1332   2              gyro[1] = ((short)fifo_data[ii+2] << 8) | fifo_data[ii+3];
+1333   2              gyro[2] = ((short)fifo_data[ii+4] << 8) | fifo_data[ii+5];
+1334   2              ii += 6;
+1335   2              sensors[0] |= INV_XYZ_GYRO;
+1336   2          }
+1337   1      
+C51 COMPILER V9.00   INV_MPU_DMP_MOTION_DRIVER                                             07/25/2015 16:10:17 PAGE 24  
+
+1338   1          /* Gesture data is at the end of the DMP packet. Parse it and call
+1339   1           * the gesture callbacks (if registered).
+1340   1           */
+1341   1          if (dmp.feature_mask & (DMP_FEATURE_TAP | DMP_FEATURE_ANDROID_ORIENT))
+1342   1              decode_gesture(fifo_data + ii);
+1343   1      
+1344   1          get_ms(timestamp);
+1345   1          return 0;
+1346   1      }
+1347          
+1348          /**
+1349           *  @brief      Register a function to be executed on a tap event.
+1350           *  The tap direction is represented by one of the following:
+1351           *  \n TAP_X_UP
+1352           *  \n TAP_X_DOWN
+1353           *  \n TAP_Y_UP
+1354           *  \n TAP_Y_DOWN
+1355           *  \n TAP_Z_UP
+1356           *  \n TAP_Z_DOWN
+1357           *  @param[in]  func    Callback function.
+1358           *  @return     0 if successful.
+1359           */
+1360          int dmp_register_tap_cb(void (*func)(unsigned char, unsigned char))
+1361          {
+1362   1          dmp.tap_cb = func;
+1363   1          return 0;
+1364   1      }
+1365          
+1366          /**
+1367           *  @brief      Register a function to be executed on a android orientation event.
+1368           *  @param[in]  func    Callback function.
+1369           *  @return     0 if successful.
+1370           */
+1371          int dmp_register_android_orient_cb(void (*func)(unsigned char))
+1372          {
+1373   1          dmp.android_orient_cb = func;
+1374   1          return 0;
+1375   1      }
+1376          
+1377          /**
+1378           *  @}
+1379           */
+1380          
+
+C51 COMPILATION COMPLETE.  3 WARNING(S),  78 ERROR(S)

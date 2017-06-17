@@ -1,0 +1,201 @@
+C51 COMPILER V9.00   TIMER                                                                 08/03/2015 19:24:10 PAGE 1   
+
+
+C51 COMPILER V9.00, COMPILATION OF MODULE TIMER
+OBJECT MODULE PLACED IN ..\Output\Timer.obj
+COMPILER INVOKED BY: D:\keil c51\C51\BIN\C51.EXE ..\src\Timer.c LARGE BROWSE INCDIR(..\inc;D:\keil c51\C51\INC) DEBUG OB
+                    -JECTEXTEND PRINT(..\list\Timer.lst) OBJECT(..\Output\Timer.obj)
+
+line level    source
+
+   1          #include <Var.h>
+   2          
+   3          void T0_Init(unsigned char ms)
+   4          {
+   5   1              AUXR &= 0x7F;           //定时器时钟12T模式
+   6   1              TMOD &= 0xF0;           //设置定时器模式
+   7   1              TMOD |= 0x01;           //设置定时器模式
+   8   1              TL0 = (65535-Fosc/12*ms*1000)%256;//)%256;              //设置定时初值
+   9   1              TH0 = (65535-Fosc/12*ms*1000)/256;//)/256;              //设置定时初值
+  10   1              TF0 = 0;                //清除TF0标志
+  11   1              ET0 = 1;
+  12   1              EA = 1;
+  13   1              TR0 = 1;                //定时器0开始计时
+  14   1      } 
+  15          
+  16          void T1_Init(unsigned char ms)
+  17          {
+  18   1              AUXR &= 0xBF;           //定时器时钟12T模式
+  19   1              TMOD &= 0x0F;           //设置定时器模式
+  20   1              TMOD |= 0x10;           //设置定时器模式
+  21   1              TL1 = (65535-Fosc/12*ms*1000)%256;//)%256;              //设置定时初值
+  22   1              TH1 = (65535-Fosc/12*ms*1000)/256;//)/256;              //设置定时初值
+  23   1              TF1 = 0;                //清除TF1标志
+  24   1              ET1 = 1;
+  25   1              EA = 1;
+  26   1              TR1 = 1;                //定时器1开始计时
+  27   1      }
+  28          
+  29          void PCA0_Init(unsigned char ms)                                        //CL与CH从0通过时钟计数，当CH、CL达到CCAP0L与CCAP0H时产生中断
+  30          {
+  31   1              CCON = 0;                       //初始化PCA
+  32   1                                          //PCA定时器停止运行
+  33   1                                          //清除CF标志位
+  34   1                                          //清除所有中断标志
+  35   1          CL = 0;                         //复位PCA基础定时器
+  36   1          CH = 0;
+  37   1          CMOD = 0x00;                    //PCA时钟源为Fosc/12
+  38   1                                          //失效PCA定时器溢出中断
+  39   1          CCAP0L = (Fosc/12*ms*1000)%256;
+  40   1              CCAP0H = (Fosc/12*ms*1000)/256;           
+  41   1          CCAPM0 = 0x49;                  //PCA定时器工作于16-bit定时器模式并使能PCA中断
+  42   1          CR = 1;                         //PCA定时器开始工作
+  43   1          EA = 1;
+  44   1      }
+  45          
+  46          void PCA1_Init(unsigned char ms)                                        //CL与CH从0通过时钟计数，当CH、CL达到CCAP0L与CCAP0H时产生中断
+  47          {
+  48   1              CCON = 0;                       //初始化PCA
+  49   1                                          //PCA定时器停止运行
+  50   1                                          //清除CF标志位
+  51   1                                          //清除所有中断标志
+  52   1          CL = 0;                         //复位PCA基础定时器
+  53   1          CH = 0;
+  54   1          CMOD = 0x00;                    //PCA时钟源为Fosc/12
+C51 COMPILER V9.00   TIMER                                                                 08/03/2015 19:24:10 PAGE 2   
+
+  55   1                                          //失效PCA定时器溢出中断
+  56   1          CCAP1L = (Fosc/12*ms*1000)%256;
+  57   1              CCAP1H = (Fosc/12*ms*1000)/256;           
+  58   1          CCAPM1 = 0x49;                  //PCA定时器工作于16-bit定时器模式并使能PCA中断
+  59   1          CR = 1;                         //PCA定时器开始工作
+  60   1          EA = 1;
+  61   1      }
+  62          
+  63          void delay_ms(unsigned char ms,unsigned char flag)
+  64          {
+  65   1              switch(flag)
+  66   1              {
+  67   2                      case 1: AUXR &= 0x7F;           //定时器时钟12T模式
+  68   2                                      TMOD &= 0xF0;           //设置定时器0模式
+  69   2                                      TMOD |= 0x01;           //设置定时器0模式
+  70   2                                      TL0 = (65535-Fosc/12*ms*1000)%256;//)%256;              //设置定时初值
+  71   2                                      TH0 = (65535-Fosc/12*ms*1000)/256;//)/256;              //设置定时初值
+  72   2                                      TF0 = 0;                //清除TF0标志
+  73   2                                      ET0 = 0;
+  74   2                                      TR0 = 1;                //定时器0开始计时
+  75   2                                      while(!TF0);
+  76   2                                      TR0 = 0;
+  77   2                                      TF0 = 0;
+  78   2                                      break;
+  79   2                      case 2: AUXR &= 0xBF;           //定时器时钟12T模式
+  80   2                                      TMOD &= 0x0F;           //设置定时器1模式
+  81   2                                      TMOD |= 0x10;           //设置定时器1模式
+  82   2                                      TL1 = (65535-Fosc/12*ms*1000)%256;//)%256;              //设置定时初值
+  83   2                                      TH1 = (65535-Fosc/12*ms*1000)/256;//)/256;              //设置定时初值
+  84   2                                      TF1 = 0;                //清除TF0标志
+  85   2                                      ET1 = 0;
+  86   2                                      TR1 = 1;                //定时器0开始计时
+  87   2                                      while(!TF1);
+  88   2                                      TR1 = 0;
+  89   2                                      TF1 = 0;
+  90   2                                      break;
+  91   2                      case 3: CCON = 0;                       //初始化PCA
+  92   2                                      CL = 0;
+  93   2                              CH = 0;
+  94   2                              CMOD = 0x00;                    //PCA时钟源为Fosc/12
+  95   2                              CCAP0L = (Fosc/12*ms*1000)%256;
+  96   2                                      CCAP0H = (Fosc/12*ms*1000)/256;           
+  97   2                              CCAPM0 = 0x48;                  //PCA定时器工作于16-bit定时器模式并使能PCA中断
+  98   2                              CR = 1;                                                  //PCA定时器开始工作
+  99   2                                  while(!CCF0);
+ 100   2                                      CR = 0;
+ 101   2                                      CCF0 = 0;                   
+ 102   2                                      break;
+ 103   2                      case 4: CCON = 0;                       //初始化PCA
+ 104   2                                      CL = 0;
+ 105   2                              CH = 0;
+ 106   2                              CMOD = 0x00;                    //PCA时钟源为Fosc/12
+ 107   2                              CCAP1L = (Fosc/12*ms*1000)%256;
+ 108   2                                      CCAP1H = (Fosc/12*ms*1000)/256;           
+ 109   2                              CCAPM1 = 0x48;                  //PCA定时器工作于16-bit定时器模式并使能PCA中断
+ 110   2                              CR = 1;                         //PCA定时器开始工作
+ 111   2                                      while(!CCF1);
+ 112   2                                      CR = 0;
+ 113   2                                      CCF1=0;
+ 114   2                                      break;
+ 115   2              }       
+ 116   1      }
+C51 COMPILER V9.00   TIMER                                                                 08/03/2015 19:24:10 PAGE 3   
+
+ 117          
+ 118          void delay_us(unsigned char us,unsigned char flag)
+ 119          {
+ 120   1              switch(flag)
+ 121   1              {
+ 122   2                      case 1: AUXR &= 0x7F;           //定时器时钟12T模式
+ 123   2                                      TMOD &= 0xF0;           //设置定时器0模式
+ 124   2                                      TMOD |= 0x02;           //设置定时器0模式
+ 125   2                                      TL0 = 255-Fosc/12*us;           //设置定时初值
+ 126   2                                      TH0 = 255-Fosc/12*us;           //设置定时初值
+ 127   2                                      TF0 = 0;                //清除TF0标志
+ 128   2                                      ET0 = 0;
+ 129   2                                      TR0 = 1;                //定时器0开始计时
+ 130   2                                      while(!TF0);
+ 131   2                                      TR0 = 0;
+ 132   2                                      TF0 = 0;
+ 133   2                                      break;
+ 134   2                      case 2: AUXR &= 0xBF;           //定时器时钟12T模式
+ 135   2                                      TMOD &= 0x0F;           //设置定时器1模式
+ 136   2                                      TMOD |= 0x20;           //设置定时器1模式
+ 137   2                                      TL1 = 256-Fosc/12*us;           //设置定时初值
+ 138   2                                      TH1 = 256-Fosc/12*us;           //设置定时初值
+ 139   2                                      TF1 = 0;                //清除TF0标志
+ 140   2                                      ET1 = 0;
+ 141   2                                      TR1 = 1;                //定时器0开始计时
+ 142   2                                      while(!TF1);
+ 143   2                                      TR1 = 0;
+ 144   2                                      TF1 = 0;
+ 145   2                                      break;
+ 146   2                      case 3: CCON = 0;                       //初始化PCA
+ 147   2                                      CL = 0;
+ 148   2                              CH = 0;
+ 149   2                              CMOD = 0x00;                    //PCA时钟源为Fosc/12
+ 150   2                              CCAP0L = (Fosc/12*us)%256;
+ 151   2                                      CCAP0H = (Fosc/12*us)/256;           
+ 152   2                              CCAPM0 = 0x48;                  //PCA定时器工作于16-bit定时器模式并使能PCA中断
+ 153   2                              CR = 1;                                                  //PCA定时器开始工作
+ 154   2                                  while(!CCF0);
+ 155   2                                      CR = 0;
+ 156   2                                      CCF0 = 0;                   
+ 157   2                                      break;
+ 158   2                      case 4: CCON = 0;                       //初始化PCA
+ 159   2                                      CL = 0;
+ 160   2                              CH = 0;
+ 161   2                              CMOD = 0x00;                    //PCA时钟源为Fosc/12
+ 162   2                              CCAP1L = (Fosc/12*us)%256;
+ 163   2                                      CCAP1H = (Fosc/12*us)/256;           
+ 164   2                              CCAPM1 = 0x48;                  //PCA定时器工作于16-bit定时器模式并使能PCA中断
+ 165   2                              CR = 1;                         //PCA定时器开始工作
+ 166   2                                      while(!CCF1);
+ 167   2                                      CR = 0;
+ 168   2                                      CCF1=0;
+ 169   2                                      break;
+ 170   2              }               
+ 171   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    748    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----       3
+   PDATA SIZE       =   ----    ----
+C51 COMPILER V9.00   TIMER                                                                 08/03/2015 19:24:10 PAGE 4   
+
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

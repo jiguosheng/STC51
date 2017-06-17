@@ -1,0 +1,96 @@
+C51 COMPILER V9.00   LCD1602                                                               07/30/2015 21:35:40 PAGE 1   
+
+
+C51 COMPILER V9.00, COMPILATION OF MODULE LCD1602
+OBJECT MODULE PLACED IN ..\Output\LCD1602.obj
+COMPILER INVOKED BY: D:\keil c51\C51\BIN\C51.EXE ..\src\LCD1602.c LARGE BROWSE INCDIR(..\inc;D:\keil c51\C51\INC) DEBUG 
+                    -OBJECTEXTEND PRINT(..\list\LCD1602.lst) OBJECT(..\Output\LCD1602.obj)
+
+line level    source
+
+   1          #include <Var.h>
+   2          
+   3          unsigned char code number[] = {"0123456789"};
+   4          unsigned char code String2[] = {"tempture:-.C"};
+   5          unsigned char code String1[] = {"Voltage: .  V"};
+   6          
+   7          bit lcd_bz()
+   8          {
+   9   1              bit result;
+  10   1              RS = 0;
+  11   1              RW = 1;
+  12   1              E = 1;  
+  13   1              _nop_();
+  14   1              _nop_();
+  15   1              _nop_();
+  16   1              _nop_();
+  17   1              result = (bit)(DATA & 0x80);
+  18   1              E = 0;
+  19   1              return result;
+  20   1      }
+  21           
+  22          void lcd_wcmd(unsigned char cmd)
+  23          {
+  24   1              while(lcd_bz());//ÅÐ¶ÏLCDÊÇ·ñÃ¦Âµ
+  25   1              RS = 0;
+  26   1              RW = 0;
+  27   1              E = 0;
+  28   1              DATA = cmd;
+  29   1              delay_us(5,T0);
+  30   1              E = 1;
+  31   1              delay_us(5,T0);
+  32   1              E = 0;
+  33   1      }
+  34           
+  35          void lcd_wdat(unsigned char dat)
+  36          {
+  37   1              while(lcd_bz());//ÅÐ¶ÏLCDÊÇ·ñÃ¦Âµ
+  38   1              RS = 1;
+  39   1              RW = 0;
+  40   1              E = 0;
+  41   1              DATA = dat;
+  42   1              delay_us(5,T0);
+  43   1              E = 1;
+  44   1              delay_us(5,T0);
+  45   1              E = 0;
+  46   1      }
+  47          
+  48          void Lcd_Init()
+  49          {
+  50   1              lcd_wcmd(BUS_8|REVEAL_2|M57);
+  51   1              delay_ms(5,T0);
+  52   1              lcd_wcmd(REVEAL_ON|CURSOR_OFF);
+  53   1              delay_ms(5,T0);
+  54   1              lcd_wcmd(CURSOR_RIGHT);
+C51 COMPILER V9.00   LCD1602                                                               07/30/2015 21:35:40 PAGE 2   
+
+  55   1              delay_ms(5,T0);
+  56   1              lcd_wcmd(CLEAR);
+  57   1              delay_ms(5,T0);
+  58   1      }
+  59          
+  60          void Lcd_display(unsigned char X,unsigned char Y,unsigned char dat)
+  61          {
+  62   1              switch(X)
+  63   1              {
+  64   2                      case 1: lcd_wcmd(0x80+Y);
+  65   2                                      break;
+  66   2                      case 2: lcd_wcmd(0xc0+Y);
+  67   2                                      break;
+  68   2              }
+  69   1              lcd_wdat(dat);
+  70   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    174    ----
+   CONSTANT SIZE    =     38    ----
+   XDATA SIZE       =   ----       2
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----       1
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

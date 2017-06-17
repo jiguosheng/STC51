@@ -1,0 +1,109 @@
+C51 COMPILER V9.00   IMU                                                                   07/25/2015 18:09:43 PAGE 1   
+
+
+C51 COMPILER V9.00, COMPILATION OF MODULE IMU
+OBJECT MODULE PLACED IN ..\Output\IMU.obj
+COMPILER INVOKED BY: D:\keil c51\C51\BIN\C51.EXE ..\src\IMU.c BROWSE INCDIR(..\inc;D:\keil c51\C51\INC) DEBUG OBJECTEXTE
+                    -ND PRINT(..\list\IMU.lst) OBJECT(..\Output\IMU.obj)
+
+line level    source
+
+   1          #include <Var.h>
+   2          
+   3          
+   4                    
+   5           
+   6           
+   7          void IMUupdate(float gx, float gy, float gz, float ax, float ay, float az)
+   8          {
+   9   1              float idata norm;
+  10   1              float idata vx, vy, vz;
+  11   1              float idata ex, ey, ez;
+  12   1              
+  13   1              float idata q0q0 = q0*q0;
+*** ERROR C202 IN LINE 13 OF ..\SRC\IMU.C: 'q0': undefined identifier
+  14   1              float idata q0q1 = q0*q1;
+*** ERROR C202 IN LINE 14 OF ..\SRC\IMU.C: 'q0': undefined identifier
+  15   1              float idata q0q2 = q0*q2;
+*** ERROR C202 IN LINE 15 OF ..\SRC\IMU.C: 'q0': undefined identifier
+  16   1              float idata q0q3 = q0*q3;
+*** ERROR C202 IN LINE 16 OF ..\SRC\IMU.C: 'q0': undefined identifier
+  17   1              float idata q1q1 = q1*q1;
+*** ERROR C202 IN LINE 17 OF ..\SRC\IMU.C: 'q1': undefined identifier
+  18   1              float idata q1q2 = q1*q2;
+*** ERROR C202 IN LINE 18 OF ..\SRC\IMU.C: 'q1': undefined identifier
+  19   1              float idata q1q3 = q1*q3;
+*** ERROR C202 IN LINE 19 OF ..\SRC\IMU.C: 'q1': undefined identifier
+  20   1              float idata q2q2 = q2*q2;
+*** ERROR C202 IN LINE 20 OF ..\SRC\IMU.C: 'q2': undefined identifier
+  21   1              float idata q2q3 = q2*q3;
+*** ERROR C202 IN LINE 21 OF ..\SRC\IMU.C: 'q2': undefined identifier
+  22   1              float idata q3q3 = q3*q3;       
+*** ERROR C202 IN LINE 22 OF ..\SRC\IMU.C: 'q3': undefined identifier
+  23   1              float idata q0=1,q1=0,q2=0,q3=0;   
+  24   1              float idata exInt=0,eyInt=0,ezInt=0;
+  25   1              float Angle,Angley;
+  26   1      
+  27   1              norm = sqrt(ax*ax + ay*ay + az*az);      
+  28   1              ax = ax /norm;
+  29   1              ay = ay / norm;
+  30   1              az = az / norm;
+  31   1                 
+  32   1              vx = 2*(q1q3 - q0q2);                                                                                           
+  33   1              vy = 2*(q0q1 + q2q3);
+  34   1              vz = q0q0 - q1q1 - q2q2 + q3q3 ;
+  35   1      
+  36   1              ex = (ay*vz - az*vy) ;                                                                  
+  37   1              ey = (az*vx - ax*vz) ;
+  38   1              ez = (ax*vy - ay*vx) ;
+  39   1      
+  40   1              exInt = exInt + ex * Ki;                                                                 
+*** ERROR C202 IN LINE 40 OF ..\SRC\IMU.C: 'Ki': undefined identifier
+  41   1              eyInt = eyInt + ey * Ki;
+*** ERROR C202 IN LINE 41 OF ..\SRC\IMU.C: 'Ki': undefined identifier
+  42   1              ezInt = ezInt + ez * Ki;
+C51 COMPILER V9.00   IMU                                                                   07/25/2015 18:09:43 PAGE 2   
+
+*** ERROR C202 IN LINE 42 OF ..\SRC\IMU.C: 'Ki': undefined identifier
+  43   1      
+  44   1              gx = gx + Kp*ex + exInt;                                                                                                
+*** ERROR C202 IN LINE 44 OF ..\SRC\IMU.C: 'Kp': undefined identifier
+  45   1              gy = gy + Kp*ey + eyInt;
+*** ERROR C202 IN LINE 45 OF ..\SRC\IMU.C: 'Kp': undefined identifier
+  46   1              gz = gz + Kp*ez + ezInt;                                                                                        
+*** ERROR C202 IN LINE 46 OF ..\SRC\IMU.C: 'Kp': undefined identifier
+  47   1                                                 
+  48   1              q0 = q0 + (-q1*gx - q2*gy - q3*gz)*halfT;
+  49   1              q1 = q1 + (q0*gx + q2*gz - q3*gy)*halfT;
+  50   1              q2 = q2 + (q0*gy - q1*gz + q3*gx)*halfT;
+  51   1              q3 = q3 + (q0*gz + q1*gy - q2*gx)*halfT;
+  52   1      
+  53   1              norm = sqrt(q0*q0 + q1*q1 + q2*q2 + q3*q3);
+  54   1              q0 = q0 / norm;
+  55   1              q1 = q1 / norm;
+  56   1              q2 = q2 / norm;
+  57   1              q3 = q3 / norm;
+  58   1      
+  59   1              Angle=asin(2*(q0*q2-q1*q3 ))* 57.2957795f; // ¸©Ñö
+  60   1              Angley=asin(2*(q0*q1+q2*q3 ))* 57.2957795f; // ºá¹ö
+  61   1      
+  62   1        ////////////////////////////////////////////////////////
+  63   1                      Angle = Angle*100;
+  64   1                      Angley = Angley*100;
+  65   1                      Lcd_display(1,0,number[(int)Angle/1000]);
+  66   1                      Lcd_display(1,1,number[(int)Angle/100%10]);
+  67   1                      Lcd_display(1,2,String2[10]);
+  68   1                      Lcd_display(1,3,number[(int)Angle/10%10]);
+  69   1                      Lcd_display(1,4,number[(int)Angle%10]);
+  70   1                      Lcd_display(1,5,' ');   
+  71   1      
+  72   1                      Lcd_display(2,0,number[(int)Angley/1000]);
+  73   1                      Lcd_display(2,1,number[(int)Angley/100%10]);
+  74   1                      Lcd_display(2,2,String2[10]);
+  75   1                      Lcd_display(2,3,number[(int)Angley/10%10]);
+  76   1                      Lcd_display(2,4,number[(int)Angley%10]);
+  77   1                      Lcd_display(2,5,' ');   
+  78   1       ////////////////////////////////////////////////////////
+  79   1      }
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  16 ERROR(S)

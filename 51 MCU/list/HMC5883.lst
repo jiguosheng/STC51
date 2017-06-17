@@ -1,0 +1,81 @@
+C51 COMPILER V9.00   HMC5883                                                               07/21/2015 21:34:00 PAGE 1   
+
+
+C51 COMPILER V9.00, COMPILATION OF MODULE HMC5883
+OBJECT MODULE PLACED IN ..\Output\HMC5883.obj
+COMPILER INVOKED BY: D:\keil c51\C51\BIN\C51.EXE ..\src\HMC5883.c BROWSE INCDIR(..\inc;D:\keil c51\C51\INC) DEBUG OBJECT
+                    -EXTEND PRINT(..\list\HMC5883.lst) OBJECT(..\Output\HMC5883.obj)
+
+line level    source
+
+   1          #include <Var.h>
+   2          
+   3          #define HMC5883_SlaveAddress   0x3C       //定义器件在IIC总线中的从地址
+   4          
+   5          unsigned char BUF[8];                         //接收数据缓存区          
+   6          
+   7          void Multiple_read_HMC5883()                      //连续读出HMC5883内部角度数据，地址范围0x3~0x5
+   8          {   
+   9   1              unsigned char i;
+  10   1          I2C_Start();                          //起始信号
+  11   1          I2C_SendByte(HMC5883_SlaveAddress);           //发送设备地址+写信号
+  12   1          I2C_SendByte(0x03);                   //发送存储单元地址，从0x3开始 
+  13   1          I2C_Start();                          //起始信号
+  14   1          I2C_SendByte(HMC5883_SlaveAddress+1);         //发送设备地址+读信号
+  15   1              for (i=0; i<6; i++)                      //连续读取6个地址数据，存储中BUF
+  16   1          {
+  17   2              BUF[i] = I2C_RecvByte();          //BUF[0]存储数据
+  18   2              if (i == 5)
+  19   2                      {
+  20   3                 I2C_SendACK(1);                //最后一个数据需要回NOACK
+  21   3              }
+  22   2              else
+  23   2              {
+  24   3                I2C_SendACK(0);                //回应ACK
+  25   3                      }
+  26   2              }
+  27   1          I2C_Stop();                          //停止信号
+  28   1          delay_ms(5,2);
+  29   1      }
+  30          
+  31          
+  32          void Init_HMC5883()                                              //初始化HMC5883，根据需要请参考pdf进行修改
+  33          {
+  34   1              Single_WriteI2C(HMC5883_SlaveAddress,0x02,0x00);  
+  35   1      }
+  36                                                                          
+  37          int HMC5883()
+  38          { 
+  39   1              int x,y,z,angle;
+  40   1                              
+  41   1              Init_HMC5883();
+  42   1              Multiple_read_HMC5883();      //连续读出数据，存储在BUF中
+  43   1          x=BUF[0] << 8 | BUF[1]; //Combine MSB and LSB of X Data output register
+  44   1          z=BUF[2] << 8 | BUF[3]; //Combine MSB and LSB of Z Data output register
+  45   1          y=BUF[4] << 8 | BUF[5]; //Combine MSB and LSB of Y Data output register
+  46   1      
+  47   1          angle=(atan2((double)y,(double)x) * (180 / 3.14159265) + 180)*10; // angle in degrees
+  48   1              Lcd_display(1,0,number[angle%10000/1000]);  
+  49   1          Lcd_display(1,1,number[angle%1000/100]); 
+  50   1          Lcd_display(1,2,number[angle%100/10]); 
+  51   1          Lcd_display(1,3,String2[10]); 
+  52   1              Lcd_display(1,4,number[angle%10]);   
+  53   1              
+  54   1              return angle;               
+C51 COMPILER V9.00   HMC5883                                                               07/21/2015 21:34:00 PAGE 2   
+
+  55   1      } 
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    361    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      8       7
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

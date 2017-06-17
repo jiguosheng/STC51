@@ -1,0 +1,150 @@
+C51 COMPILER V9.00   MAIN                                                                  08/03/2015 19:24:09 PAGE 1   
+
+
+C51 COMPILER V9.00, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN ..\Output\main.obj
+COMPILER INVOKED BY: D:\keil c51\C51\BIN\C51.EXE ..\src\main.c LARGE BROWSE INCDIR(..\inc;D:\keil c51\C51\INC) DEBUG OBJ
+                    -ECTEXTEND PRINT(..\list\main.lst) OBJECT(..\Output\main.obj)
+
+line level    source
+
+   1          #include <Var.h>
+   2          
+   3          void main()
+   4          {  
+   5   1              MCU_Init();
+   6   1                      
+   7   1              while(1)
+   8   1              {               
+   9   2      //              MPU6050(Ax,1,0);
+  10   2      //              MPU6050(Ay,1,7);
+  11   2      //              MPU6050(Az,2,0);
+  12   2      //              MPU6050(Wx,2,7);
+  13   2      //              MPU6050(Wy,2,7);
+  14   2      //              MPU6050(Wz,2,0);
+  15   2      //              MPU6050(Temp,2,0);
+  16   2      //              Measure_Length();
+  17   2      //      Single_WriteI2C(0xa0,4,3);
+  18   2              delay_ms(50,T0); 
+  19   2              displayshumaguan(5,2);
+  20   2                      WDT_CONTR |= 0x10; 
+  21   2              }
+  22   1      }
+  23          
+  24          //void INT0() interrupt 0
+  25          //{
+  26          //
+  27          //} 
+  28          
+  29          //void T0_ISR() interrupt 1
+  30          //{
+  31          //      /*TL0 = (65535-Fosc/12*ms*1000)%256;//)%256;            //设置定时初值
+  32          //      TH0 = (65535-Fosc/12*ms*1000)/256;//)/256;              //设置定时初值*/
+  33          //
+  34          //}
+  35          
+  36          //void INT1() interrupt 2
+  37          //{
+  38          //
+  39          //}
+  40          
+  41          //void T1_ISR() interrupt 3
+  42          //{
+  43          //      TL1 = (65535-Fosc/12*4*1000)%256;               //设置定时初值
+  44          //      TH1 = (65535-Fosc/12*4*1000)/256;               //设置定时初值
+  45          //
+  46          //}
+  47          
+  48          void Uart1() interrupt 4
+  49          {
+  50   1              static unsigned char count = 0;
+  51   1              if(RI)
+  52   1              {
+  53   2                      RI = 0;
+  54   2                      if(SBUF == 0x7F)
+C51 COMPILER V9.00   MAIN                                                                  08/03/2015 19:24:09 PAGE 2   
+
+  55   2                      {
+  56   3                              count++;
+  57   3                              if(count == 5)
+  58   3                              {
+  59   4                                      count = 0;
+  60   4                                      IAP_CONTR = 0x60;  //单片机遇到程序下载命令字后，单片机复位。这样不需要按键复位了。
+  61   4                              }
+  62   3                      }
+  63   2                      else
+  64   2                      {
+  65   3                              count = 0;
+  66   3      
+  67   3                      }
+  68   2              }
+  69   1      }
+  70          
+  71          //void LVD() interrupt 6
+  72          //{
+  73          //      PCON &= 0xdf;   //清除LVD标志位
+  74          //}
+  75          
+  76          //void PCA_Interrupt() interrupt 7
+  77          //{
+  78          //      /*CCF0 = 0;
+  79          //      CCF1 = 0;*/
+  80          //
+  81          //} 
+  82          
+  83          //void PCA_isr() interrupt 7                                            //高速脉冲输出
+  84          //{
+  85          //    /*CCF0 = 0;                       //Clear interrupt flag
+  86          //    CCAP0L = (unsigned char)(Fosc*1000000/(4*f)+0.5);
+  87          //      CCAP1L = (unsigned char)(Fosc*1000000/(4*f)+0.5); */
+  88          //}
+  89          
+  90          //void Uart2() interrupt 8
+  91          //{
+  92          //      if (S2CON & S2RI)
+  93          //    {
+  94          //        S2CON &= ~S2RI;     //Clear receive interrupt flag
+  95          //         = S2BUF;         //P0 show UART data
+  96          //    } 
+  97          //}
+  98          
+  99          //void SPI() interrupt 9
+ 100          //{
+ 101          //      /*SPSTAT = SPIF | WCOL;       //clear SPI status                         //互为主从
+ 102          //    if (MSSEL)
+ 103          //    {
+ 104          //        SPCTL = SPEN;           //reset as slave
+ 105          //        MSSEL = 0;
+ 106          //        SPISS = 1;              //push high slave SS
+ 107          //        SendUart(SPDAT);        //return received SPI data
+ 108          //    }
+ 109          //    else
+ 110          //    {                           //for salve (receive SPI data from master and
+ 111          //        SPDAT = SPDAT;                //           send previous SPI data to master)
+ 112          //    } */
+ 113          //      /*
+ 114          //      SPSTAT = SPIF | WCOL;       //clear SPI status                          //单主单从
+ 115          //      #ifdef MASTER
+ 116          //      SPISS = 1;                  //push high slave SS
+C51 COMPILER V9.00   MAIN                                                                  08/03/2015 19:24:09 PAGE 3   
+
+ 117          //      SendUart(SPDAT);            //return received SPI data
+ 118          //      #else                                                   //for salve (receive SPI data from master and
+ 119          //      SPDAT = SPDAT;              //           send previous SPI data to master)
+ 120          //      #endif
+ 121          //      */
+ 122          //}
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     71    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =      1    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
